@@ -69,16 +69,25 @@ smoke-tested against the real 2024 universe -- `compute_exploitability.py`
 reproduces the old trilogy's one-shot regret figures (RegretD ~2.85,
 RegretR ~4.6 seats).
 
-Also on 2026-08-11: audited how R's spending environment is built
-(`docs/methodology.md`) and closed a real data gap -- state party
-committees' 24K coordinated expenditures were only ever scanned for
-Democratic state parties (old project's `FINDINGS.md` Section 10.7 Gap 3).
-Added the Republican-side scan (`scripts/fetch_data.py::identify_state_rep_party_committees`,
-verified against `committee_master`, full 50-state coverage) and ran it for
-both 2022 and 2024; `coordinated_expenditures_{cycle}.csv` is
-re-consolidated with both sides now. Small dollar impact (NRCC 2024 budget:
-$131.95M -> $132.11M), not a driver of the headline numbers, but the R side
-is no longer a documented undercount relative to D's.
+Also on 2026-08-11, two data-pipeline fixes, both in `docs/methodology.md`:
+
+1. Audited how R's spending environment is built and closed a real data gap
+   -- state party committees' 24K coordinated expenditures were only ever
+   scanned for Democratic state parties (old project's `FINDINGS.md`
+   Section 10.7 Gap 3). Added the Republican-side scan, ran it for both
+   2022 and 2024. Small dollar impact by itself (NRCC 2024: $131.95M ->
+   $132.11M).
+2. **Bigger fix, caught by design review before any historical backtest
+   ran**: `party_d`/`party_r` (the two-player game's actual decision
+   variables) were "total minus candidate money," which includes outside-
+   group independent expenditures DCCC/NRCC don't control. Redefined via
+   `src/estimation/control_provenance.py` to be only each national
+   committee's OWN coordinated + own-IE money. This moved DCCC's 2024
+   budget from $465.2M to **$102.1M**, NRCC's from $132.1M to **$47.2M**
+   (NRCC's own IEs alone are $48.4M -- 16x its coordinated spending, and
+   were previously indistinguishable from Congressional Leadership Fund's
+   or any other outside group's). RegretD/RegretR at the corrected, smaller
+   budgets: 2.36 / 3.23 seats (were 2.85 / 4.61).
 
 Not yet run: the full 2022/2024 historical backtest (spec §26's MVP), the
 R-side surrogate validation, the D/R symmetry test, and the Manim renders

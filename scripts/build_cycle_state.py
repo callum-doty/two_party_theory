@@ -5,11 +5,18 @@ analysis (project_spec.md Section 3), frozen at the final-cycle information
 date for the initial static project.
 
 Shared loader used by every other scripts/*.py in this project: reuses
-backtest.data.universe.build_universe (race state X_i) and
-backtest.data.fec.load_candidate_disbursements (R's own candidate-committee
-floor, needed to split R's observed total into floor + party money the same
-way D's side already is -- see solve_nash_equilibrium.py's original
-docstring on why this isn't a RaceRecord field).
+backtest.data.universe.build_universe (race state X_i), then applies
+estimation.control_provenance.apply_control_floor to redefine each race's
+floor as ALL non-national-committee-controlled money (candidate + state
+party + outside IE), not just candidate money -- so `party_d = d_total -
+cand_d_total` and `party_r = r_total - cand_r_total` recover x_D / x_R
+(DCCC's / NRCC's own controllable money) rather than "all money the
+candidate itself didn't raise," which would let BR_D/BR_R "reallocate"
+super-PAC dollars neither committee actually controls. See
+control_provenance.py's module docstring for the full accounting identity
+and the empirical size of the correction (NRCC's own money is $48.4M in
+2024, not the $132M "everything non-candidate" figure this function
+returned before 2026-08-11).
 
 Usage:
     python scripts/build_cycle_state.py --cycle 2024
@@ -30,8 +37,8 @@ REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from backtest.data import fec
 from backtest.data.universe import build_universe
+from estimation.control_provenance import apply_control_floor
 
 import solve_bellman_lsm as lsm  # noqa: E402 -- reuse its real-coefficient loader
 
@@ -39,22 +46,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("build_cycle_state")
 
 
-def load_cand_r_total(races, cycle: int) -> np.ndarray:
-    """R-party candidate-committee disbursements per race, aligned to
-    races' order -- R's own floor, mirroring how cand_d_total is built for D."""
-    disb = fec.load_candidate_disbursements(cycle)
-    r_disb = disb[disb["party"] == "R"].set_index("district_id")["candidate_disbursements"]
-    return np.array([float(r_disb.get(r.district_id, 0.0)) for r in races])
-
-
 def build_cycle_state(cycle: int, cap_fraction_d: float = 0.15, cap_fraction_r: float = 0.15) -> dict:
     """Returns races, coef, sigma_model, cand_r_total, and both sides'
-    budgets/caps -- everything scripts/*.py need for this cycle."""
+    budgets/caps -- everything scripts/*.py need for this cycle. races'
+    cand_d_total and the returned cand_r_total are CONTROL floors (spec
+    Section 5's D_i_bar/R_i_bar upper-bound accounting), not raw candidate
+    disbursements -- see control_provenance.py."""
     coef, sigma_model = lsm.load_coef_and_sigma()
     races = build_universe(cycle=cycle)
+    races, cand_r_total = apply_control_floor(races, cycle)
     n = len(races)
 
-    cand_r_total = load_cand_r_total(races, cycle)
     floors_d = np.array([r.cand_d_total for r in races])
     r0 = np.array([r.r_total for r in races])
     d0 = np.array([r.d_total for r in races])

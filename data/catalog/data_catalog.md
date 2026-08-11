@@ -7,11 +7,11 @@ this project adds no new data universe.
 
 | Category (spec Section 17) | Source(s) in `data/raw/` | Notes |
 |---|---|---|
-| Candidate spending | `fec/`, `candidate_master/`, `candidate_committee_linkage/` | Per-candidate committee disbursements (D and R), via `backtest.data.fec.load_candidate_disbursements`. This project's `cand_r_total` (R's own floor) is filtered from the same source as D's `cand_d_total`. |
-| Party committee spending | `fec/`, `committee_master/` | DCCC/NRCC coordinated spending (FEC API, per-committee) PLUS state party committees' own 24K coordinated expenditures (`scripts/fetch_data.py::parse_state_party_coordinated_24k`, scanned from `all_committee_transactions/itoth*.txt`) -- feeds `RaceRecord.d_total` / `r_total`. Symmetric as of 2026-08-11: `coordinated_state_party_{dem,rep}_{cycle}.csv` both exist for 2022 and 2024 (see catalog note below; was D-only through the old project). |
-| Independent expenditures | `independent_expenditure/`, `schedule_b-2026-07-07T15_54_35.csv` | FEC Schedule E-derived IE data. |
-| Democratic-aligned outside spending | `fec/`, `pac_summary/` | Non-party D-aligned spending, where identifiable from FEC filer data. |
-| Republican-aligned outside spending | `fec/`, `pac_summary/` | Mirror of the above for R-aligned spenders. |
+| Candidate spending | `fec/`, `candidate_master/`, `candidate_committee_linkage/` | Per-candidate committee disbursements (D and R), via `backtest.data.fec.load_candidate_disbursements`. Raw FEC "disbursements" (broader than "expenditures" -- may include refunds/transfers/loan repayments); not yet cleaned to campaign-relevant-only, see `docs/methodology.md`'s open-items note. |
+| Party committee spending | `fec/`, `committee_master/` | DCCC/NRCC coordinated spending (FEC API, per-committee) PLUS state party committees' own 24K coordinated expenditures (`scripts/fetch_data.py::parse_state_party_coordinated_24k`, scanned from `all_committee_transactions/itoth*.txt`). Symmetric as of 2026-08-11: `coordinated_state_party_{dem,rep}_{cycle}.csv` both exist for 2022 and 2024 (was D-only through the old project). **Only the national committee's own coordinated $ + own IEs count as x_D/x_R** (the game's decision variable) -- see `src/estimation/control_provenance.py` and the catalog note below. |
+| Independent expenditures | `independent_expenditure/`, `schedule_b-2026-07-07T15_54_35.csv` | FEC Schedule E-derived, ALL outside groups (super PACs, 527s, AND the national party committees' own "hybrid" IEs). `scripts/fetch_data.py::extract_national_committee_ies` splits DCCC's/NRCC's own IE dollars out of this total -- see catalog note below. |
+| Democratic-aligned outside spending | `fec/`, `pac_summary/` | Non-national-committee D-aligned IE spending (i.e. `independent_expenditure/` minus DCCC's own IEs) -- floor money for the DCCC-vs-NRCC game, not decision-variable money. |
+| Republican-aligned outside spending | `fec/`, `pac_summary/` | Mirror of the above for R-aligned spenders (minus NRCC's own IEs). |
 | Race fundamentals | `cook_pvi/`, `census/`, `generic_ballot/`, `generic_ballot_averages.csv` | PVI, CVAP, generic-ballot series feeding `mu_const`/`sigma` in the margin model. |
 | District boundaries | `census/` | Used for CVAP/demographic joins, not spatial analysis in this project. |
 | Candidate identity/status | `candidate_master/`, `house_senate_current_campaigns/`, `mit_elections/` | Incumbency status, open-seat flags, ballot membership. |
@@ -36,6 +36,19 @@ and `backtest/optimizer/nash.py`'s R best response both use D's own
 calibrated ceiling/elasticity, mirrored, as a stated assumption (spec
 Section 19's symmetry test is not yet run -- see
 `scripts/estimate_response_model.py`).
+
+## Control vs. alignment: x_D/x_R redefined (2026-08-11)
+
+`party_d = d_total - cand_d_total` used to mean "everything the D candidate
+didn't raise" -- including outside-group IEs the DCCC doesn't control. Since
+2026-08-11, `RaceRecord.cand_d_total` (and the `cand_r_total` array
+`build_cycle_state.py` returns) are CONTROL floors, not raw candidate
+disbursements: `cand + party_state + outside`, leaving `party_d`/`party_r`
+= exactly the national committee's own coordinated + own-IE money. See
+`src/estimation/control_provenance.py` for the full four-way decomposition
+(`cand`, `party_natl`, `party_state`, `outside`) and `docs/methodology.md`
+for the empirical size of the correction (DCCC/NRCC 2024 budgets: $465.2M/
+$132.1M -> $102.1M/$47.2M).
 
 ## State-party coordinated spending gap (closed 2026-08-11)
 

@@ -63,6 +63,83 @@ arbitrary trim.
 | C | Algorithm recovers known synthetic equilibria? | `src/validation/synthetic_games.py`, `tests/test_synthetic_game.py`. Standalone logistic-contest game, decoupled from the estimated election model on purpose (isolates the ITERATION algorithm from the SUBSTANTIVE model). |
 | D | Observed allocations closer to Nash than alternatives? | `src/validation/historical_backtest.py::run_cycle` computes the L1 distance; the full comparison against equal-allocation / Cook-heuristic / one-sided-optimizer / random-feasible benchmarks (spec Section 20's five-way comparison) is not yet implemented -- next step after the 2022/2024 MVP (spec Section 26). |
 
+## x_D / x_R must be CONTROLLED money, not just non-candidate money (fixed 2026-08-11)
+
+A design critique caught a real conceptual error before any historical
+backtest ran: `party_r = r_total - cand_r_total` (and the D-side mirror)
+were being fed directly into `BR_D`/`BR_R`/`MSG^D`/`MSG^R` as the two-player
+game's decision variables. But `r_total - cand_r_total` is "every dollar
+not raised by the R candidate committee" -- it includes super-PAC and other
+outside-group independent expenditures the NRCC has no legal authority over
+(FEC's own definition: an independent expenditure is, by definition, NOT
+coordinated with any party committee). Feeding that into an optimizer as
+"NRCC's action space" lets the model reallocate money the NRCC could never
+actually move.
+
+Fixed via `src/estimation/control_provenance.py`, which decomposes every
+race's d_total/r_total into four sources with a checked accounting identity
+(`cand + party_natl + party_state + outside == total`, verified to float
+precision on both 2022 and 2024):
+
+- `cand` -- candidate committee disbursements (unchanged).
+- `party_natl` -- the NATIONAL committee's OWN money: its coordinated
+  expenditures PLUS its own independent expenditures (a "hybrid" IE
+  strategy party committees may legally use -- still the committee's own
+  spending decision, unlike a super PAC's IE, even though both show up as
+  "R-aligned IE" in the raw comprehensive file). **This is x_D / x_R.**
+- `party_state` -- state party 24K coordinated spending (see the
+  state-party section below): real, coordinated, party money, but
+  controlled by STATE parties, not DCCC/NRCC -- floor, not action, for a
+  DCCC-vs-NRCC game.
+- `outside` -- every other IE (super PACs, 527s): floor money that still
+  compresses the persuasion ceiling like candidate spending does, but isn't
+  a lever either optimizer can pull.
+
+This was NOT a small correction. On the 433-race 2024 universe:
+
+| | Old ("party" = total − candidate) | Corrected (x = national-committee-controlled) |
+|---|---|---|
+| DCCC budget | $465.2M | **$102.1M** |
+| NRCC budget | $132.1M | **$47.2M** |
+| D/R budget ratio | 3.5x | 2.2x |
+
+NRCC's own independent expenditures ($48.4M more IE than only $3.1M of
+coordinated spend, more than 16x the old NRCC "party" bucket that everyone
+assumed was NRCC's decision) were previously indistinguishable from
+Congressional Leadership Fund's, Club for Growth Action's, or any other
+outside group's IE spending in the same district. 2022's corrected budgets
+are DCCC $99.5M vs. NRCC $91.4M -- nearly even, a materially different
+picture from what any "everything non-candidate" measure would show.
+`compute_exploitability.py --cycle 2024` under the corrected budgets:
+RegretD 2.36 (was 2.85), RegretR 3.23 (was 4.61) -- smaller absolute regret
+with a smaller, correctly-scoped action space, as expected.
+
+`src/game/*.py` needed ZERO code changes for this: `apply_control_floor()`
+overwrites `RaceRecord.cand_d_total` (and returns a corrected
+`cand_r_total` array) with the new floor BEFORE anything in `game/` ever
+sees the race universe, so `party_d = d_total - cand_d_total` recovers
+x_D automatically everywhere it's already computed that way.
+`d_total`/`r_total` themselves are untouched -- the estimated margin model
+still correctly sees TOTAL two-party spending (its persuasive effect
+doesn't depend on who controls the money); only the game layer's notion of
+the controllable action changed.
+
+**Confirmed already correct, no fix needed**: IE party-alignment is
+race/candidate-outcome-oriented (`(D candidate AND support) OR (R candidate
+AND oppose)` per transaction, via `sup_opp`), not "spender is generally
+R-aligned" -- `build_comprehensive_ie()` already did this right.
+
+**Known open item, not fixed here** (flagged by the same critique): candidate
+"disbursements" (`load_candidate_disbursements`) are FEC's broader
+disbursement category, which can include refunds, transfers, and loan
+repayments alongside genuine campaign-relevant expenditures -- FEC
+distinguishes "disbursement" from "expenditure" and this project currently
+uses the former uncleaned. Auditing this against the response model's own
+estimation sample (so `cand_d_total`/`cand_r_total` and whatever the
+persuasion-elasticity coefficients were actually fit on match) would need
+FEC Schedule B purpose-code filtering -- a real, separate data-quality task,
+not attempted in this pass.
+
 ## R-side state-party coordinated spending (closed 2026-08-11)
 
 Before continuing to any historical backtest, we audited how R's spending

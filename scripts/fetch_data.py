@@ -1332,6 +1332,65 @@ def build_comprehensive_ie(cycle: int, force: bool = False) -> None:
     )
 
 
+def extract_national_committee_ies(cycle: int) -> "pd.DataFrame":
+    """DCCC's and NRCC's OWN independent expenditures, split out from the
+    comprehensive R/D-aligned IE total build_comprehensive_ie() produces.
+
+    Added 2026-08-11 for the strategic-campaign-allocation project: a
+    national party committee can legally make independent expenditures (a
+    "hybrid" IE, distinct from its coordinated expenditures, which are
+    capped by FEC coordinated-expenditure limits) -- these are still the
+    committee's OWN spending decision, unlike a super PAC's IE, even though
+    both land in the same "R-aligned IE" bucket build_comprehensive_ie()
+    produces. On the 2024 House general universe this is NOT a rounding
+    error: NRCC's own IEs are $48.5M, nearly 16x its ~$3.1M in coordinated
+    expenditures; DCCC's own IEs are $98.6M. Neither was previously
+    distinguishable from Congressional Leadership Fund's, Club for Growth
+    Action's, or any other outside group's IE spending in the SAME district.
+
+    Same source file, same House-general + support/oppose alignment filter
+    as build_comprehensive_ie(), with an ADDITIONAL filter on spe_id (the
+    spender committee's own FEC ID) == DCCC_COMMITTEE_ID or NRCC_COMMITTEE_ID.
+
+    Returns columns: district_id, party, cycle, national_committee_ie
+    """
+    import pandas as pd
+
+    src_dir = Path(__file__).parent.parent / "data" / "raw" / "independent_expenditure"
+    src_path = src_dir / f"independent_expenditure_{cycle}.csv"
+    if not src_path.exists():
+        raise FileNotFoundError(f"Comprehensive IE file not found: {src_path}")
+
+    df = pd.read_csv(src_path, dtype=str, low_memory=False)
+    df = df[(df["can_office"] == "H") & (df["ele_type"] == "G")].copy()
+    df["exp_amo"] = pd.to_numeric(df["exp_amo"], errors="coerce").fillna(0).abs()
+    df["district_id"] = df["can_office_state"].str.strip().str.upper() + "-" + df["can_office_dis"].str.strip().str.zfill(2)
+
+    is_dem_cand = df["cand_pty_aff"].str.upper().str.contains("DEMOCRAT", na=False)
+    is_rep_cand = df["cand_pty_aff"].str.upper().str.contains("REPUBLICAN", na=False)
+    is_support = df["sup_opp"].str.upper() == "S"
+    is_oppose = df["sup_opp"].str.upper() == "O"
+    d_aligned = (is_dem_cand & is_support) | (is_rep_cand & is_oppose)
+    r_aligned = (is_rep_cand & is_support) | (is_dem_cand & is_oppose)
+
+    dccc_own = df[d_aligned & (df["spe_id"] == DCCC_COMMITTEE_ID)]
+    nrcc_own = df[r_aligned & (df["spe_id"] == NRCC_COMMITTEE_ID)]
+
+    d_out = (dccc_own.groupby("district_id")["exp_amo"].sum()
+             .reset_index().rename(columns={"exp_amo": "national_committee_ie"}))
+    d_out["party"] = "D"
+    r_out = (nrcc_own.groupby("district_id")["exp_amo"].sum()
+             .reset_index().rename(columns={"exp_amo": "national_committee_ie"}))
+    r_out["party"] = "R"
+
+    out = pd.concat([d_out, r_out], ignore_index=True)
+    out["cycle"] = cycle
+    logger.info(f"National committee own-IE {cycle}: DCCC ${dccc_own['exp_amo'].sum():,.0f} "
+                f"across {len(d_out)} districts, NRCC ${nrcc_own['exp_amo'].sum():,.0f} "
+                f"across {len(r_out)} districts")
+    return out[["district_id", "party", "cycle", "national_committee_ie"]]
+
+
 def rebuild_all_from_local(cycles: list[int]) -> None:
     """
     Regenerate candidate_disbursements, independent_expenditures, and incumbency CSVs
