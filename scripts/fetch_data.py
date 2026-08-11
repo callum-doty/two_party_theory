@@ -79,6 +79,15 @@ DCCC_COMMITTEE_ID = "C00000935"
 NRCC_COMMITTEE_ID = "C00075820"
 DNC_COMMITTEE_ID = "C00010603"
 DSCC_COMMITTEE_ID = "C00042366"
+# Verified 2026-08-11 directly against data/raw/committee_master/cm*.txt
+# (same standard as the NRCC correction above) while building the R-side
+# mirror of identify_state_dem_party_committees() -- RNC's name is literally
+# "REPUBLICAN NATIONAL COMMITTEE" (cmte_pty_affiliation=REP); NRSC's is
+# literally "NRSC" (not spelled out, matching DSCC's own convention), and is
+# NOT the same committee as the several unrelated Senate-candidate/PAC rows
+# that also contain "NATIONAL REPUBLICAN SENATORIAL" as free text.
+RNC_COMMITTEE_ID = "C00003418"
+NRSC_COMMITTEE_ID = "C00027466"
 
 
 FIPS_TO_STATE = {
@@ -574,6 +583,42 @@ _MANUAL_STATE_PARTY_COMMITTEE_IDS = {
 # a known, documented gap in this function's coverage, not silently assumed
 # zero or silently included on a weak match.
 
+# ─── R-side mirror, added 2026-08-11 ──────────────────────────────────────────
+# Until this point, the state-party 24K scan (parse_state_party_coordinated_24k
+# below) only ever covered Democratic state parties -- flagged in FINDINGS.md
+# Section 10.7 (Gap 3) as future work and never closed for the R side. Left
+# unaddressed, R's spending total (r_total, and therefore cand_r_total /
+# party_r / budget_r throughout src/game/) was a documented undercount
+# relative to D's -- a real asymmetry in a project whose whole premise is
+# treating both sides symmetrically, not a fixed benchmark like the mirrored
+# persuasion ceiling.
+_STATE_PARTY_SUFFIX_PATTERN_REP = (
+    r"REPUBLICAN[- ](?:PARTY|STATE CENTRAL COMMITTEE|EXECUTIVE COMMITTEE|"
+    r"CENTRAL EXECUTIVE COMMITTEE|STATE COMMITTEE|STATE CMTE)|"
+    r"STATE REPUBLICAN (?:CENTRAL |EXECUTIVE )?COMMITTEE|"
+    r"(?:STATE CENTRAL|STATE EXECUTIVE) COMMITTEE.*REPUBLICAN"
+)
+# Structural pattern alone (same has_own_state_name + suffix + ~is_substate
+# check as the Dem side) matches 43 of 50 states cleanly. The remaining 7,
+# each individually verified directly against committee_master (same
+# standard as the Dem-side manual list): all are cmte_dsgn="U",
+# cmte_tp="Y" (qualified party committee, matching every automatic match's
+# own designation) with no other Y-type REP committee registered in that
+# state, but a name shape the suffix regex doesn't (and, per the Dem-side
+# comment above, deliberately doesn't try to) catch generically:
+_MANUAL_STATE_PARTY_COMMITTEE_IDS_REP = {
+    "CO": "C00033134",  # COLORADO REPUBLICAN COMMITTEE (no PARTY/STATE COMMITTEE suffix)
+    "NM": "C00020818",  # REPUBLICAN CAMPAIGN COMMITTEE OF NEW MEXICO
+    "NV": "C00082925",  # NEVADA REPUBLICAN CENTRAL COMMITTEE (missing "STATE")
+    "NY": "C00055582",  # NY REPUBLICAN FEDERAL CAMPAIGN COMMITTEE (abbreviated state, mirrors WV on the Dem side)
+    "OK": "C00167213",  # OKLAHOMA LEADERSHIP COUNCIL (Oklahoma GOP's actual FEC-registered name)
+    "PA": "C00044842",  # REPUBLICAN FEDERAL COMMITTEE OF PENNSYLVANIA (mirrors GA's "FEDERAL ELECTIONS COMMITTEE" shape on the Dem side)
+    "VT": "C00035618",  # VERMONT REPUBLICAN FEDERAL ELECTIONS COMMITTEE
+}
+# Unlike the Dem side, Indiana IS covered automatically here ("INDIANA
+# REPUBLICAN STATE COMMITTEE, INC." matches the structural pattern) -- no
+# manual entry needed, and no equivalent gap on this side.
+
 # Belt-and-suspenders blocklist -- catches the rare case where a genuinely
 # sub-state committee happens to also spell out its state's full name (e.g.
 # a county committee named "X COUNTY CALIFORNIA DEMOCRATIC PARTY"), plus two
@@ -662,6 +707,46 @@ def identify_state_dem_party_committees(exclude_national: set[str] | None = None
     )
 
 
+def identify_state_rep_party_committees(exclude_national: set[str] | None = None) -> "pd.DataFrame":
+    """State-level Republican party committees -- mirror of
+    identify_state_dem_party_committees() above (same CMTE_TP/CMTE_DSGN
+    filter, same name-shape heuristic), added 2026-08-11 to close the R-side
+    gap in the state-party 24K coordinated-spending scan (see that
+    function's own docstring and _MANUAL_STATE_PARTY_COMMITTEE_IDS_REP's
+    comment for the verification history).
+
+    Structural pattern + manual list together identify all 50 states'
+    Republican party committees (unlike the Dem side, no state is left
+    uncovered here -- Indiana, the Dem side's one gap, has an unambiguous
+    structural match on this side)."""
+    import pandas as pd
+
+    if exclude_national is None:
+        exclude_national = {NRCC_COMMITTEE_ID, RNC_COMMITTEE_ID, NRSC_COMMITTEE_ID}
+    cm = _load_committee_master()
+    is_party_committee = cm["cmte_tp"].isin(["X", "Y"]) & (cm["cmte_dsgn"] == "U")
+    is_rep = cm["cmte_pty_affiliation"] == "REP"
+    not_national = ~cm["cmte_id"].isin(exclude_national)
+
+    name_upper = cm["cmte_nm"].fillna("").str.upper()
+    state_full = cm["cmte_st"].map(_FULL_STATE_NAMES).fillna("")
+    has_own_state_name = pd.Series(
+        [bool(s) and s in n for s, n in zip(state_full, name_upper)], index=cm.index,
+    )
+    has_party_suffix = name_upper.str.contains(_STATE_PARTY_SUFFIX_PATTERN_REP, na=False, regex=True)
+    is_substate = name_upper.str.contains("|".join(_SUBSTATE_NAME_PATTERNS), na=False, regex=True)
+
+    candidates = cm[
+        is_party_committee & is_rep & not_national
+        & has_own_state_name & has_party_suffix & ~is_substate
+    ].copy()
+    manual = cm[cm["cmte_id"].isin(_MANUAL_STATE_PARTY_COMMITTEE_IDS_REP.values())].copy()
+    candidates = pd.concat([candidates, manual], ignore_index=True).drop_duplicates(subset=["cmte_id"])
+    return candidates[["cmte_id", "cmte_nm", "cmte_st"]].rename(
+        columns={"cmte_id": "committee_id", "cmte_nm": "committee_name", "cmte_st": "state"}
+    )
+
+
 def _itoth_file_year_range(path: Path) -> tuple[int, int]:
     """Cheap, O(1)-I/O sampled scan (5 seek points, not exhaustive) of one
     itoth*.txt bulk file's approximate TRANSACTION_DT year coverage, used
@@ -719,14 +804,21 @@ def _scan_itoth_file_for_24k(path: Path, cycle_years: set[int], chunksize: int =
     return pd.concat(keep, ignore_index=True)
 
 
-def parse_state_party_coordinated_24k(cycle: int) -> "pd.DataFrame":
-    """State Democratic party committees' 24K coordinated expenditures into
-    House candidate committees, aggregated per district -- the data gap
+def parse_state_party_coordinated_24k(cycle: int, party: str = "D") -> "pd.DataFrame":
+    """State party committees' 24K coordinated expenditures into House
+    candidate committees, aggregated per district -- the data gap
     FINDINGS.md Section 10.7 (Gap 3) documented as "out of scope for this
-    audit" and left as future work. Additive to, NOT a duplicate of, the
-    existing DCCC-only coordinated_dccc_{cycle}.csv path (fetched via the
-    FEC API against C00000935 specifically) -- DCCC's own 24K rows are
-    explicitly excluded here to avoid double-counting.
+    audit" and left as future work FOR THE D SIDE ONLY. Additive to, NOT a
+    duplicate of, the existing DCCC/NRCC-only coordinated_{dccc,nrcc}_{cycle}.csv
+    path (fetched via the FEC API against each committee's own ID) -- that
+    committee's own 24K rows are explicitly excluded here to avoid
+    double-counting.
+
+    party: "D" or "R" (added 2026-08-11, generalizing the original D-only
+    implementation so the SAME scan logic covers both sides -- see
+    identify_state_rep_party_committees()'s docstring for why this closes a
+    real, quantified asymmetry rather than being purely a code-cleanliness
+    change).
 
     District attribution: 24K rows carry CMTE_ID (the filing party
     committee) and OTHER_ID (the recipient candidate committee) but no
@@ -745,6 +837,12 @@ def parse_state_party_coordinated_24k(cycle: int) -> "pd.DataFrame":
     """
     import pandas as pd
 
+    if party not in ("D", "R"):
+        raise ValueError(f"party must be 'D' or 'R', got {party!r}")
+    national_committee_id = DCCC_COMMITTEE_ID if party == "D" else NRCC_COMMITTEE_ID
+    identify_fn = identify_state_dem_party_committees if party == "D" else identify_state_rep_party_committees
+    label = "Dem" if party == "D" else "Rep"
+
     all_dir = config.raw_path("all_committee_transactions")
     paths = sorted(all_dir.glob("itoth*.txt")) if all_dir.exists() else []
     if not paths:
@@ -760,31 +858,31 @@ def parse_state_party_coordinated_24k(cycle: int) -> "pd.DataFrame":
             relevant_paths.append(p)
     if not relevant_paths:
         logger.warning(
-            f"24K state-party scan {cycle}: no itoth*.txt file's sampled date range "
+            f"24K state-party scan {cycle} ({label}): no itoth*.txt file's sampled date range "
             f"overlaps {sorted(cycle_years)} -- returning an empty result."
         )
         return pd.DataFrame(columns=["district_id", "party", "cycle", "coordinated_expenditures"])
 
-    logger.info(f"24K state-party scan {cycle}: scanning {[p.name for p in relevant_paths]} "
+    logger.info(f"24K state-party scan {cycle} ({label}): scanning {[p.name for p in relevant_paths]} "
                 f"(cycle_years={sorted(cycle_years)})")
     frames = [_scan_itoth_file_for_24k(p, cycle_years) for p in relevant_paths]
     raw = pd.concat(frames, ignore_index=True)
     n_before_dedup = len(raw)
     raw = raw.drop_duplicates(subset=["sub_id"])   # dedup across overlapping-vintage files
-    logger.info(f"24K state-party scan {cycle}: {n_before_dedup} raw 24K/CCM rows, "
+    logger.info(f"24K state-party scan {cycle} ({label}): {n_before_dedup} raw 24K/CCM rows, "
                 f"{len(raw)} after cross-file dedup on sub_id")
 
-    state_dem = identify_state_dem_party_committees()
-    raw = raw[raw["cmte_id"] != DCCC_COMMITTEE_ID]   # never double-count DCCC's own coordinated spend
-    raw = raw.merge(state_dem[["committee_id"]], left_on="cmte_id", right_on="committee_id", how="inner")
-    logger.info(f"24K state-party scan {cycle}: {len(raw)} rows from an identified state Dem party committee")
+    state_committees = identify_fn()
+    raw = raw[raw["cmte_id"] != national_committee_id]   # never double-count DCCC/NRCC's own coordinated spend
+    raw = raw.merge(state_committees[["committee_id"]], left_on="cmte_id", right_on="committee_id", how="inner")
+    logger.info(f"24K state-party scan {cycle} ({label}): {len(raw)} rows from an identified state {label} party committee")
 
     crosswalk = _load_candidate_committee_crosswalk(cycle)   # CAND_ID -> principal CMTE_ID
     committee_to_cand = {v: k for k, v in crosswalk.items()}   # inverted: CMTE_ID -> CAND_ID
     raw["cand_id"] = raw["other_id"].map(committee_to_cand)
     n_unmatched = int(raw["cand_id"].isna().sum())
     if n_unmatched:
-        logger.warning(f"24K state-party scan {cycle}: {n_unmatched} row(s) had no matching House "
+        logger.warning(f"24K state-party scan {cycle} ({label}): {n_unmatched} row(s) had no matching House "
                         f"principal-committee crosswalk entry for OTHER_ID and were dropped.")
     raw = raw[raw["cand_id"].notna()]
 
@@ -800,7 +898,7 @@ def parse_state_party_coordinated_24k(cycle: int) -> "pd.DataFrame":
     raw = raw.merge(cn[["cand_id", "district_id"]], on="cand_id", how="left")
     n_no_district = int(raw["district_id"].isna().sum())
     if n_no_district:
-        logger.warning(f"24K state-party scan {cycle}: {n_no_district} row(s) had a candidate_id "
+        logger.warning(f"24K state-party scan {cycle} ({label}): {n_no_district} row(s) had a candidate_id "
                         f"with no candidate_master match and were dropped.")
     raw = raw[raw["district_id"].notna()]
 
@@ -809,9 +907,9 @@ def parse_state_party_coordinated_24k(cycle: int) -> "pd.DataFrame":
         raw.groupby("district_id")["transaction_amt"].sum().reset_index()
         .rename(columns={"transaction_amt": "coordinated_expenditures"})
     )
-    out["party"] = "D"
+    out["party"] = party
     out["cycle"] = cycle
-    logger.info(f"24K state-party scan {cycle}: ${out['coordinated_expenditures'].sum():,.0f} "
+    logger.info(f"24K state-party scan {cycle} ({label}): ${out['coordinated_expenditures'].sum():,.0f} "
                 f"across {len(out)} districts")
     return out[["district_id", "party", "cycle", "coordinated_expenditures"]]
 
@@ -1044,7 +1142,7 @@ def consolidate_fec_files(cycle: int, force: bool = False, kinds: list[str] | No
     import pandas as pd
 
     fec_dir = config.raw_path("fec")
-    coordinated_labels = ["dccc", "nrcc", "state_party_dem"]
+    coordinated_labels = ["dccc", "nrcc", "state_party_dem", "state_party_rep"]
     all_kinds = [("coordinated", coordinated_labels), ("ie", ["dccc", "nrcc"])]
     selected = all_kinds if kinds is None else [(k, labels) for k, labels in all_kinds if k in kinds]
     for kind, labels in selected:
@@ -1456,10 +1554,11 @@ def main() -> None:
         # should trigger silently.
         for cycle in args.cycles:
             logger.info(f"─── State-party 24K coordinated expenditures: cycle {cycle} ───")
-            out = parse_state_party_coordinated_24k(cycle)
-            out_path = config.raw_path("fec") / f"coordinated_state_party_dem_{cycle}.csv"
-            out.to_csv(out_path, index=False)
-            logger.info(f"Saved → {out_path}")
+            for party, label in [("D", "dem"), ("R", "rep")]:
+                out = parse_state_party_coordinated_24k(cycle, party=party)
+                out_path = config.raw_path("fec") / f"coordinated_state_party_{label}_{cycle}.csv"
+                out.to_csv(out_path, index=False)
+                logger.info(f"Saved → {out_path}")
             consolidate_fec_files(cycle, force=True, kinds=["coordinated"])
 
     logger.info("\nFetch complete.")

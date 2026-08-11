@@ -67,7 +67,20 @@ python scripts/compute_persistent_value.py --cycle 2024  # PSV for top-surplus r
 Scaffolded 2026-08-11: the two-player math (`src/game/`) is implemented and
 smoke-tested against the real 2024 universe -- `compute_exploitability.py`
 reproduces the old trilogy's one-shot regret figures (RegretD ~2.85,
-RegretR ~4.6 seats). Not yet run: the full 2022/2024 historical backtest
-(spec §26's MVP), the R-side surrogate validation, the D/R symmetry test,
-and the Manim renders (`visuals/` is structure-only -- neither ManimGL nor
-ffmpeg are installed on this machine yet).
+RegretR ~4.6 seats).
+
+Also on 2026-08-11: audited how R's spending environment is built
+(`docs/methodology.md`) and closed a real data gap -- state party
+committees' 24K coordinated expenditures were only ever scanned for
+Democratic state parties (old project's `FINDINGS.md` Section 10.7 Gap 3).
+Added the Republican-side scan (`scripts/fetch_data.py::identify_state_rep_party_committees`,
+verified against `committee_master`, full 50-state coverage) and ran it for
+both 2022 and 2024; `coordinated_expenditures_{cycle}.csv` is
+re-consolidated with both sides now. Small dollar impact (NRCC 2024 budget:
+$131.95M -> $132.11M), not a driver of the headline numbers, but the R side
+is no longer a documented undercount relative to D's.
+
+Not yet run: the full 2022/2024 historical backtest (spec §26's MVP), the
+R-side surrogate validation, the D/R symmetry test, and the Manim renders
+(`visuals/` is structure-only -- neither ManimGL nor ffmpeg are installed on
+this machine yet).

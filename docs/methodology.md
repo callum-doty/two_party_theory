@@ -63,6 +63,38 @@ arbitrary trim.
 | C | Algorithm recovers known synthetic equilibria? | `src/validation/synthetic_games.py`, `tests/test_synthetic_game.py`. Standalone logistic-contest game, decoupled from the estimated election model on purpose (isolates the ITERATION algorithm from the SUBSTANTIVE model). |
 | D | Observed allocations closer to Nash than alternatives? | `src/validation/historical_backtest.py::run_cycle` computes the L1 distance; the full comparison against equal-allocation / Cook-heuristic / one-sided-optimizer / random-feasible benchmarks (spec Section 20's five-way comparison) is not yet implemented -- next step after the 2022/2024 MVP (spec Section 26). |
 
+## R-side state-party coordinated spending (closed 2026-08-11)
+
+Before continuing to any historical backtest, we audited how R's spending
+environment (`r_total`, `cand_r_total`, `budget_r`) is actually assembled
+(`backtest.data.fec.build_total_spend`): candidate committee disbursements +
+NRCC coordinated expenditures (FEC API) + comprehensive R-aligned
+independent expenditures. The IE and candidate-committee channels are
+symmetric methodology already (same alignment rule, same top-spender
+selection, applied identically to both parties) -- the ~3.5x D/R gap in
+observed 2024 independent expenditures ($479M vs. $136M) reads as a real
+empirical fact about that cycle, not a coverage artifact.
+
+One channel WASN'T symmetric: state party committees' own 24K coordinated
+expenditures were scanned from the raw FEC bulk transaction files
+(`all_committee_transactions/itoth*.txt`) for Democratic state parties only
+(`identify_state_dem_party_committees`, inherited from the old project's
+`FINDINGS.md` Section 10.7 Gap 3, never closed for R). Fixed by adding
+`identify_state_rep_party_committees()` in `scripts/fetch_data.py`, verified
+state-by-state against `committee_master` (43/50 states matched by the same
+structural name pattern already used for D; the remaining 7 -- CO, NM, NV,
+NY, OK, PA, VT -- added as individually-verified manual entries, mirroring
+exactly how GA/LA/WV/WY were added on the D side). `parse_state_party_
+coordinated_24k` is now `party`-parametrized instead of hardcoded to "D".
+
+Ran for both 2022 and 2024 (the spec's initial two historical cycles):
+$153,650 (2024) and $131,425 (2022) in previously-uncounted R state-party
+coordinated spending, re-consolidated into `coordinated_expenditures_
+{cycle}.csv`. NRCC's 2024 discretionary budget moved from $131.95M to
+$132.11M -- real, but small enough that it does not change the qualitative
+regret/exploitability picture from the earlier smoke test. `data/catalog/
+data_catalog.md` has the full before/after table.
+
 ## Known open items (see spec Section 19, addressed only partially)
 
 - **D/R elasticity symmetry test**: not implemented (`scripts/estimate_response_model.py::test_d_r_symmetry` raises `NotImplementedError` with what it would take). Until run, treat `MSG^R` as "D's mirrored elasticity," an assumption, not a tested symmetric response curve.
