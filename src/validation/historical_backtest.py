@@ -22,7 +22,8 @@ from pathlib import Path
 
 import numpy as np
 
-from game import equilibrium, exploitability, persistent_value as pv
+from game import equilibrium, exploitability, payoff
+from game import persistent_value as pv
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,23 @@ def run_cycle(cycle: int, races, coef, sigma_model, cand_r_total: np.ndarray,
         damping_theta=damping_theta, max_rounds=max_rounds,
     )
 
+    logger.info(f"[{cycle}] Isolated PSV baselines: U_D(D, BR_R(D)) and U_R(BR_D(D), R)…")
+    # See game/persistent_value.py's module docstring: the literal spec
+    # formula (baseline = observed U_D(D,R)/U_R(D,R)) makes PSV nearly
+    # race-invariant whenever observed spending is itself far from either
+    # side's own unilateral optimum -- true here (RegretD/RegretR both
+    # positive and O(seats), not O(0.01 seats)). race_level_surplus() above
+    # already solved BR_D(R_obs) and BR_R(D_obs) (its own res_d/res_r) --
+    # reused here rather than re-solving, so this costs zero extra
+    # best-response solves.
+    res_d_star, res_r_star = surplus["res_d"], surplus["res_r"]
+    total_r_star = cand_r_total + res_r_star.party
+    party_d_obs = np.maximum(d0 - floors_d, 0.0)
+    baseline_d = payoff.expected_seats_d(payoff.p_win(party_d_obs, races, coef, sigma_model, total_r_star))
+
+    e_d_at_d_star = payoff.expected_seats_d(payoff.p_win(res_d_star.party, races, coef, sigma_model, r0))
+    baseline_r = payoff.expected_seats_r(n, e_d_at_d_star)
+
     logger.info(f"[{cycle}] Persistent strategic value for top {n_psv_races} |Z_D| "
                 f"and top {n_psv_races} |Z_R| races…")
     top_d_idx = np.argsort(-np.abs(surplus["Z_D"]))[:n_psv_races]
@@ -67,6 +85,7 @@ def run_cycle(cycle: int, races, coef, sigma_model, cand_r_total: np.ndarray,
         pv.persistent_strategic_value_d(
             races, coef, sigma_model, cand_r_total, budget_d, budget_r,
             race_idx=int(i), delta=psv_delta, cap_fraction_d=cap_fraction_d, cap_fraction_r=cap_fraction_r,
+            baseline_e_seats=baseline_d,
         )
         for i in top_d_idx
     ]
@@ -74,6 +93,7 @@ def run_cycle(cycle: int, races, coef, sigma_model, cand_r_total: np.ndarray,
         pv.persistent_strategic_value_r(
             races, coef, sigma_model, cand_r_total, budget_d, budget_r,
             race_idx=int(i), delta=psv_delta, cap_fraction_d=cap_fraction_d, cap_fraction_r=cap_fraction_r,
+            baseline_e_seats_r=baseline_r,
         )
         for i in top_r_idx
     ]
@@ -99,6 +119,9 @@ def run_cycle(cycle: int, races, coef, sigma_model, cand_r_total: np.ndarray,
             "multi_start_agreement": nash_result.multi_start_agreement,
         },
         "l1_distance_observed_to_nash": l1_distance,
+        "psv_baseline": "isolated",
+        "psv_baseline_e_seats_d": baseline_d,
+        "psv_baseline_e_seats_r": baseline_r,
         "persistent_value_D": psv_d,
         "persistent_value_R": psv_r,
         "quadrant_counts": _quadrant_counts(surplus),

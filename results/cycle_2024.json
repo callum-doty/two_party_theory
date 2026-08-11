@@ -1,0 +1,155 @@
+{
+  "cycle": 2024,
+  "n_races": 433,
+  "budget_d": 102127601.82,
+  "budget_r": 47188303.919999994,
+  "cap_fraction_d": 0.15,
+  "cap_fraction_r": 0.15,
+  "exploitability": {
+    "e_seats_d_obs": 217.04451044688528,
+    "e_seats_r_obs": 215.95548955311472,
+    "regret_D": 2.356972408440356,
+    "regret_R": 3.233468320281048,
+    "exploitability": 5.590440728721404,
+    "pct_of_one_seat": 559.0440728721404,
+    "pct_of_competitive_seats": 2.575711644220316
+  },
+  "nash": {
+    "converged": true,
+    "n_iterations": 13,
+    "e_seats_d": 217.2044173943672,
+    "e_seats_r": 215.7955826056328,
+    "multi_start_agreement": {
+      "converged_all": true,
+      "agree_within_tolerance": true,
+      "max_pairwise_party_d_diff": 4513.121319239028,
+      "max_pairwise_party_r_diff": 1055.2675037836889,
+      "per_start_converged": {
+        "observed": true,
+        "uniform": true,
+        "zero": true
+      },
+      "per_start_e_seats_d": {
+        "observed": 217.2044173943672,
+        "uniform": 217.2044784741099,
+        "zero": 217.2044563696803
+      },
+      "per_start_n_iterations": {
+        "observed": 13,
+        "uniform": 12,
+        "zero": 13
+      }
+    }
+  },
+  "l1_distance_observed_to_nash": 292632939.1178224,
+  "persistent_value_D": [
+    {
+      "district_id": "GA-07",
+      "delta": 100000.0,
+      "V_uni": 0.0395032131485209,
+      "PSV": 0.0562965807926048,
+      "erosion": -0.0167933676440839,
+      "retention_rate": 1.4251139668296244
+    },
+    {
+      "district_id": "SC-05",
+      "delta": 100000.0,
+      "V_uni": 0.0008683661164639034,
+      "PSV": 0.004273180536728205,
+      "erosion": -0.0034048144202643016,
+      "retention_rate": 4.920943431244343
+    },
+    {
+      "district_id": "NC-14",
+      "delta": 100000.0,
+      "V_uni": 0.033791293904187114,
+      "PSV": 0.04773299542065956,
+      "erosion": -0.013941701516472449,
+      "retention_rate": 1.4125826479448578
+    },
+    {
+      "district_id": "NC-06",
+      "delta": 100000.0,
+      "V_uni": 0.03384348360214062,
+      "PSV": 0.04490227540540559,
+      "erosion": -0.011058791803264967,
+      "retention_rate": 1.3267628100366562
+    },
+    {
+      "district_id": "OH-10",
+      "delta": 100000.0,
+      "V_uni": 0.023761715375286485,
+      "PSV": 0.020737604219760897,
+      "erosion": 0.0030241111555255884,
+      "retention_rate": 0.8727317827116626
+    },
+    {
+      "district_id": "FL-04",
+      "delta": 100000.0,
+      "V_uni": 0.00023380865019362318,
+      "PSV": 0.0022228104806174542,
+      "erosion": -0.001989001830423831,
+      "retention_rate": 9.506964258066096
+    }
+  ],
+  "persistent_value_R": [
+    {
+      "district_id": "CT-02",
+      "delta": 100000.0,
+      "V_uni": 0.02314089186168644,
+      "PSV": 0.01320279996596696,
+      "erosion": 0.00993809189571948,
+      "retention_rate": 0.5705398065416126
+    },
+    {
+      "district_id": "TX-03",
+      "delta": 100000.0,
+      "V_uni": 0.017802556778235612,
+      "PSV": 0.011490141308541979,
+      "erosion": 0.006312415469693633,
+      "retention_rate": 0.6454208489080158
+    },
+    {
+      "district_id": "NC-06",
+      "delta": 100000.0,
+      "V_uni": 0.026356602953796937,
+      "PSV": 0.016872678491580473,
+      "erosion": 0.009483924462216464,
+      "retention_rate": 0.6401689368375066
+    },
+    {
+      "district_id": "NC-14",
+      "delta": 100000.0,
+      "V_uni": 0.026158340595429763,
+      "PSV": 0.016456203869751107,
+      "erosion": 0.009702136725678656,
+      "retention_rate": 0.6290996865690418
+    },
+    {
+      "district_id": "FL-27",
+      "delta": 100000.0,
+      "V_uni": 0.0075241100554990226,
+      "PSV": 0.005234963068915022,
+      "erosion": 0.002289146986584001,
+      "retention_rate": 0.6957584392441244
+    },
+    {
+      "district_id": "AZ-09",
+      "delta": 100000.0,
+      "V_uni": 0.018263488319547605,
+      "PSV": 0.011761014290073035,
+      "erosion": 0.00650247402947457,
+      "retention_rate": 0.6439631949984657
+    }
+  ],
+  "quadrant_counts": {
+    "possible over-capitalization": 235,
+    "Democratic opportunity": 141,
+    "under-contested / escalation pressure": 41,
+    "Republican opportunity": 15,
+    "locally equilibrated": 1
+  },
+  "psv_baseline": "isolated",
+  "psv_baseline_e_seats_d": 213.81104212660424,
+  "psv_baseline_e_seats_r": 213.59851714467436
+}
