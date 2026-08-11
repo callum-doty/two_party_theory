@@ -63,8 +63,17 @@ def main() -> None:
         races, coef, sigma_model, cand_r_total, budget_d, budget_r,
         args.cap_fraction_d, args.cap_fraction_r,
     )
-    top_d_idx = np.argsort(-np.abs(surplus["Z_D"]))[: args.n_races]
-    top_r_idx = np.argsort(-np.abs(surplus["Z_R"]))[: args.n_races]
+    # Restricted to races with real current party spend before ranking by
+    # |Z| -- see src/validation/historical_backtest.py's inline comment for
+    # why an unrestricted top-|Z| selection is dominated by the low-spend
+    # MSG artifact at $0-party-spend races (the majority of races, once
+    # DCCC/NRCC budgets are correctly scoped to control-only money) and
+    # produces numerically unstable PSV/retention there.
+    min_party_spend = 10_000.0
+    funded_d = np.where(surplus["party_d_obs"] > min_party_spend)[0]
+    funded_r = np.where(surplus["party_r_obs"] > min_party_spend)[0]
+    top_d_idx = funded_d[np.argsort(-np.abs(surplus["Z_D"][funded_d]))[: args.n_races]]
+    top_r_idx = funded_r[np.argsort(-np.abs(surplus["Z_R"][funded_r]))[: args.n_races]]
 
     baseline_d, baseline_r = None, None
     if args.baseline == "isolated":

@@ -77,10 +77,37 @@ def run_cycle(cycle: int, races, coef, sigma_model, cand_r_total: np.ndarray,
     e_d_at_d_star = payoff.expected_seats_d(payoff.p_win(res_d_star.party, races, coef, sigma_model, r0))
     baseline_r = payoff.expected_seats_r(n, e_d_at_d_star)
 
+    # Candidate pool restricted to races with REAL current party spend before
+    # ranking by |Z| -- found necessary 2026-08-11 investigating a retention
+    # >100% anomaly in an unrestricted first run. Root cause, verified by
+    # tracing individual races end to end: with the corrected (small)
+    # DCCC/NRCC control budgets, the vast majority of races get exactly $0
+    # of party money (379/433 for D, 394/433 for R on the 2024 universe) --
+    # MSG_D/MSG_R evaluated AT $0 sits at the steepest, most unstable point
+    # of the persuasion-ceiling curve (the SAME "low-spend MSG artifact"
+    # scripts/game_theory/race_level_exploitability.py's own scatter-plot
+    # code already documents and excludes via its "competitive_only" cut).
+    # An unrestricted top-|Z| selection is dominated by this zero-spend
+    # population by sheer sample size. Because these races' TRUE unilateral
+    # value (evaluated at a REAL delta injection, not the instantaneous
+    # derivative) saturates almost immediately and stays small even as delta
+    # grows 10x, while R's full 433-race reoptimization in response to ANY
+    # change to D's allocation pattern produces a comparably-sized (or
+    # larger) second-order reshuffling effect under the shared budget
+    # constraint, PSV/V_uni becomes numerically unstable at a near-zero
+    # denominator -- not evidence that "opponent optimization increases
+    # value," just division instability. Restricting to races DCCC/NRCC are
+    # ACTUALLY funding is also the more faithful reading of spec Section 13
+    # itself: PSV asks whether a real, currently-active opportunity survives
+    # optimal response, not an artifact of a boundary derivative.
+    min_party_spend = 10_000.0
+    funded_d = np.where(surplus["party_d_obs"] > min_party_spend)[0]
+    funded_r = np.where(surplus["party_r_obs"] > min_party_spend)[0]
     logger.info(f"[{cycle}] Persistent strategic value for top {n_psv_races} |Z_D| "
-                f"and top {n_psv_races} |Z_R| races…")
-    top_d_idx = np.argsort(-np.abs(surplus["Z_D"]))[:n_psv_races]
-    top_r_idx = np.argsort(-np.abs(surplus["Z_R"]))[:n_psv_races]
+                f"and top {n_psv_races} |Z_R| races (restricted to currently-funded races: "
+                f"{len(funded_d)}/{n} D, {len(funded_r)}/{n} R)…")
+    top_d_idx = funded_d[np.argsort(-np.abs(surplus["Z_D"][funded_d]))[:n_psv_races]]
+    top_r_idx = funded_r[np.argsort(-np.abs(surplus["Z_R"][funded_r]))[:n_psv_races]]
     psv_d = [
         pv.persistent_strategic_value_d(
             races, coef, sigma_model, cand_r_total, budget_d, budget_r,

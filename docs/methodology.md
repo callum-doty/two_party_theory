@@ -3,6 +3,65 @@
 Supplement to `docs/project_spec.md` -- implementation-level decisions the
 spec leaves open, and why each was resolved the way it was.
 
+## PSV retention >100% anomaly: investigated and fixed (2026-08-11)
+
+The first historical-backtest run (`docs/results_2022_2024.md`) showed
+several D-side races with PSV retention above 100% -- the opponent's
+optimal response making the deviation race MORE valuable, the opposite of
+what PSV is designed to detect. Traced end to end (GA-07, 2024) before
+accepting or dismissing it. Two distinct, now-fixed causes were found; a
+smaller amount of genuine >100% variation remains and is NOT a bug.
+
+**Cause 1 (the big one): candidate selection picked $0-spend races.**
+`historical_backtest.run_cycle` ranked ALL 433 races by `|Z_D|` (a
+normalized, dimensionless surplus measure) to pick PSV candidates. Once
+x_D/x_R were correctly scoped to control-only money (see the section
+below), DCCC places $0 of party money in 379 of 433 races (NRCC in 394 of
+433) -- and MSG evaluated AT exactly $0 sits at the steepest, most unstable
+point of the persuasion-ceiling curve, a known artifact
+`scripts/game_theory/race_level_exploitability.py`'s own scatter-plot code
+already documents ("low-spend MSG artifact dominates"). Verified directly:
+every single flagged race had `party_d_obs == $0`. Because these races'
+TRUE unilateral value (evaluated at a real $100K-$1M injection, not the
+instantaneous derivative) saturates almost immediately and stays tiny --
+confirmed by re-running GA-07 at 10x the delta and finding V_uni virtually
+unchanged (+0.0395 -> +0.0394) while PSV got WORSE (retention 142.5% ->
+195.7%) -- while R's full 433-race reoptimization produces a comparably-
+sized second-order reshuffling effect under the shared budget constraint,
+PSV/V_uni divides two numbers of similar magnitude and the ratio becomes
+unstable. **Fix**: restrict the candidate pool to races with real current
+party spend (`> $10,000`) before ranking by `|Z|` -- both
+`historical_backtest.py` and `compute_persistent_value.py`.
+
+**Cause 2 (smaller): near-zero V_uni even among funded races.** After Cause
+1's fix, 2024's R-side top-|Z_R| picks were all funded races but still had
+tiny |V_uni| (~0.0001-0.0002 expected seats) -- R's allocation among
+races it actually funds was already close to locally optimal, so there was
+barely any unilateral opportunity to begin with, and PSV/V_uni was again
+dividing near-noise. **Fix**: `game/persistent_value.py`'s
+`RETENTION_MATERIALITY_THRESHOLD` (0.001 expected seats) -- below it,
+`retention_rate` is reported as `NaN` ("no material opportunity here," not
+a percentage) rather than a technically-defined but practically-misleading
+ratio.
+
+**What's genuine and NOT a bug**: even after both fixes, a handful of
+well-funded races with real V_uni (NV-01 2024: V_uni=+0.0042) still show
+retention above 100% (209.5%). Traced analytically: PSV - V_uni =
+[U_D(D', BR_R(D')) - U_D(D', R_obs)] - (-RegretR). The bracketed term is
+the aggregate effect of R's FULL reoptimization specifically at the
+perturbed allocation D' (not the generic -RegretR baseline effect at
+D_obs) -- moving delta from D's lowest-value funded race INTO the target
+race changes what R's whole-portfolio optimum looks like under the shared
+budget constraint, and that reshuffling can happen to land marginally more
+favorably for D than the -RegretR baseline would suggest. This is a real
+second-order equilibrium interaction, not solver noise -- confirmed by
+inspecting where R's money actually moved between BR_R(D_obs) and BR_R(D')
+in the GA-07 trace (R poured MORE money into GA-07 itself under BR_R(D'),
+which should hurt D there specifically, yet the AGGREGATE effect across all
+433 races was still slightly more D-favorable than -RegretR). Report
+retention as a real but occasionally counterintuitive statistic, not one
+that's always boundable to [0%, 100%].
+
 ## Shared probability model, not two calibrated formulas
 
 `game/payoff.py` and `game/gradients.py` use ONE p_i(D, R) model for both

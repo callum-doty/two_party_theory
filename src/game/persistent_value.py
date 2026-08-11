@@ -46,6 +46,31 @@ reused across every race in a candidate set) -- that isolates each race's
 own erosion from the shared, race-independent RegretR term, and is the
 more informative comparison whenever observed spending is itself far from
 either side's unilateral optimum.
+
+RETENTION-RATIO INSTABILITY, found 2026-08-11 investigating a retention
+>100% anomaly in the 2022/2024 historical backtest (docs/methodology.md
+has the full writeup): retention_rate = PSV / V_uni is a ratio of two small
+numbers and is only a meaningful percentage when V_uni itself is large
+enough to represent a real, material unilateral opportunity. Two distinct
+failure modes were found empirically:
+
+  1. Candidate races selected by top-|Z| (a NORMALIZED, dimensionless
+     surplus measure) can have Z far from zero while the race is at exactly
+     $0 current party spend -- MSG evaluated AT $0 sits at the steepest,
+     most unstable point of the persuasion-ceiling curve (a known artifact,
+     see scripts/game_theory/race_level_exploitability.py's own
+     "low-spend MSG artifact" caveat). FIX: callers should restrict the
+     candidate pool to races with real current party spend before ranking
+     by |Z| -- see historical_backtest.py's min_party_spend filter. This
+     module has no way to enforce that itself (it only computes PSV for a
+     race index it's given), so it is the CALLER's responsibility.
+  2. Even among currently-funded races, |V_uni| itself can be small enough
+     (a few hundredths of a percent of a seat) that PSV/V_uni is dividing
+     two near-zero, noisy numbers. RETENTION_MATERIALITY_THRESHOLD below
+     (0.001 expected seats, i.e. 1/1000th of a seat) is the bar both
+     functions use before reporting a numeric retention_rate at all --
+     smaller than that, retention_rate is NaN ("no material unilateral
+     opportunity here to begin with," not "highly retained").
 """
 
 from __future__ import annotations
@@ -55,6 +80,8 @@ import numpy as np
 from . import best_response as br
 from . import gradients
 from . import payoff
+
+RETENTION_MATERIALITY_THRESHOLD = 0.001  # expected seats; below this, V_uni is too small for PSV/V_uni to be a meaningful percentage
 
 
 def _finance_delta(party_own: np.ndarray, msg_own: np.ndarray, target_idx: int,
@@ -114,7 +141,7 @@ def persistent_strategic_value_d(races, coef, sigma_model, cand_r_total, budget_
     psv = payoff.expected_seats_d(payoff.p_win(party_d_dev, races, coef, sigma_model, total_r_prime)) - baseline
 
     erosion = v_uni - psv
-    retention = float(psv / v_uni) if abs(v_uni) > 1e-12 else float("nan")
+    retention = float(psv / v_uni) if abs(v_uni) > RETENTION_MATERIALITY_THRESHOLD else float("nan")
     return dict(
         district_id=races[race_idx].district_id, delta=delta,
         V_uni=v_uni, PSV=psv, erosion=erosion, retention_rate=retention,
@@ -158,7 +185,7 @@ def persistent_strategic_value_r(races, coef, sigma_model, cand_r_total, budget_
     psv = payoff.expected_seats_r(n, e_d_star) - baseline_r
 
     erosion = v_uni - psv
-    retention = float(psv / v_uni) if abs(v_uni) > 1e-12 else float("nan")
+    retention = float(psv / v_uni) if abs(v_uni) > RETENTION_MATERIALITY_THRESHOLD else float("nan")
     return dict(
         district_id=races[race_idx].district_id, delta=delta,
         V_uni=v_uni, PSV=psv, erosion=erosion, retention_rate=retention,
