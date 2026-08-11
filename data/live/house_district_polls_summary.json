@@ -1,0 +1,215 @@
+{
+  "as_of": "2026-07-28",
+  "districts": {
+    "AK-01": {
+      "poll_n": 4,
+      "poll_mean": 8.5,
+      "poll_sigma": 3.696845502136472,
+      "latest_end_date": "2026-06-29",
+      "poll_trend": 0.006403106870902785
+    },
+    "AZ-06": {
+      "poll_n": 4,
+      "poll_mean": 1.75,
+      "poll_sigma": 0.9574271077563381,
+      "latest_end_date": "2026-06-11",
+      "poll_trend": 0.0045692293346218694
+    },
+    "CA-06": {
+      "poll_n": 1,
+      "poll_mean": 4.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-07-16",
+      "poll_trend": null
+    },
+    "CA-22": {
+      "poll_n": 2,
+      "poll_mean": 2.0,
+      "poll_sigma": 2.8284271247461903,
+      "latest_end_date": "2026-06-21",
+      "poll_trend": 0.012618296529968452
+    },
+    "CO-03": {
+      "poll_n": 1,
+      "poll_mean": 9.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-01-12",
+      "poll_trend": null
+    },
+    "FL-27": {
+      "poll_n": 3,
+      "poll_mean": 6.666666666666667,
+      "poll_sigma": 3.511884584284246,
+      "latest_end_date": "2026-03-08",
+      "poll_trend": -0.020000000000000014
+    },
+    "FL-28": {
+      "poll_n": 2,
+      "poll_mean": 5.0,
+      "poll_sigma": 1.4142135623730951,
+      "latest_end_date": "2026-03-07",
+      "poll_trend": null
+    },
+    "IA-01": {
+      "poll_n": 2,
+      "poll_mean": 4.5,
+      "poll_sigma": 0.7071067811865476,
+      "latest_end_date": "2026-07-16",
+      "poll_trend": 0.002551020408163263
+    },
+    "ME-02": {
+      "poll_n": 6,
+      "poll_mean": 3.0,
+      "poll_sigma": 3.63318042491699,
+      "latest_end_date": "2026-04-29",
+      "poll_trend": 0.011337482353845893
+    },
+    "MI-04": {
+      "poll_n": 2,
+      "poll_mean": 1.5,
+      "poll_sigma": 0.7071067811865476,
+      "latest_end_date": "2026-03-14",
+      "poll_trend": -0.008849557522123894
+    },
+    "MI-07": {
+      "poll_n": 2,
+      "poll_mean": 4.0,
+      "poll_sigma": 0.0,
+      "latest_end_date": "2025-10-28",
+      "poll_trend": null
+    },
+    "MT-01": {
+      "poll_n": 2,
+      "poll_mean": 4.5,
+      "poll_sigma": 0.7071067811865476,
+      "latest_end_date": "2026-05-05",
+      "poll_trend": null
+    },
+    "NE-01": {
+      "poll_n": 1,
+      "poll_mean": 7.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-05-11",
+      "poll_trend": null
+    },
+    "NH-02": {
+      "poll_n": 1,
+      "poll_mean": 19.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-06-25",
+      "poll_trend": null
+    },
+    "NJ-07": {
+      "poll_n": 1,
+      "poll_mean": 4.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-05-26",
+      "poll_trend": null
+    },
+    "NY-01": {
+      "poll_n": 1,
+      "poll_mean": 3.0,
+      "poll_sigma": null,
+      "latest_end_date": "2025-12-11",
+      "poll_trend": null
+    },
+    "NY-04": {
+      "poll_n": 1,
+      "poll_mean": 5.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-02-17",
+      "poll_trend": null
+    },
+    "NY-17": {
+      "poll_n": 2,
+      "poll_mean": 5.5,
+      "poll_sigma": 0.7071067811865476,
+      "latest_end_date": "2026-07-01",
+      "poll_trend": 0.007462686567164179
+    },
+    "NY-18": {
+      "poll_n": 1,
+      "poll_mean": 7.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-02-17",
+      "poll_trend": null
+    },
+    "OH-15": {
+      "poll_n": 1,
+      "poll_mean": 5.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-06-25",
+      "poll_trend": null
+    },
+    "PA-07": {
+      "poll_n": 1,
+      "poll_mean": 4.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-07-02",
+      "poll_trend": null
+    },
+    "PA-08": {
+      "poll_n": 1,
+      "poll_mean": 2.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-06-23",
+      "poll_trend": null
+    },
+    "PA-10": {
+      "poll_n": 3,
+      "poll_mean": 4.333333333333333,
+      "poll_sigma": 1.5275252316519465,
+      "latest_end_date": "2026-04-23",
+      "poll_trend": 0.01056252134458701
+    },
+    "TX-15": {
+      "poll_n": 2,
+      "poll_mean": 2.5,
+      "poll_sigma": 0.7071067811865476,
+      "latest_end_date": "2026-05-25",
+      "poll_trend": -0.003906250000000003
+    },
+    "TX-23": {
+      "poll_n": 3,
+      "poll_mean": 2.0,
+      "poll_sigma": 0.0,
+      "latest_end_date": "2026-03-11",
+      "poll_trend": null
+    },
+    "VA-01": {
+      "poll_n": 2,
+      "poll_mean": 1.0,
+      "poll_sigma": 1.4142135623730951,
+      "latest_end_date": "2026-03-12",
+      "poll_trend": 0.009302325581395347
+    },
+    "VA-02": {
+      "poll_n": 1,
+      "poll_mean": 0.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-07-13",
+      "poll_trend": null
+    },
+    "VT-01": {
+      "poll_n": 1,
+      "poll_mean": 31.0,
+      "poll_sigma": null,
+      "latest_end_date": "2026-06-23",
+      "poll_trend": null
+    },
+    "WA-03": {
+      "poll_n": 2,
+      "poll_mean": 3.629999999999999,
+      "poll_sigma": 3.7193816690412387,
+      "latest_end_date": "2026-07-10",
+      "poll_trend": -0.015335276967930018
+    },
+    "WI-03": {
+      "poll_n": 2,
+      "poll_mean": 3.0,
+      "poll_sigma": 1.4142135623730951,
+      "latest_end_date": "2026-06-25",
+      "poll_trend": 0.007905138339920946
+    }
+  }
+}

@@ -1,0 +1,60 @@
+district_id,pollster,start_date,end_date,sample_size,leader_pct,second_pct,margin,url
+AK-01,Data for Progress,2025-10-17,2025-10-23,823,48.0,37.0,11.0,https://www.filesforprogress.org/datasets/2025/10/dfp_ak_oct_2025_electoral_and_health.pdf#page=6
+AK-01,Public Policy Polling,2026-02-11,2026-02-12,600,46.0,39.0,7.0,https://hub.nationaljournal.com/new-maps-for-new-york-1?ecid=ACsprvtXCGX_y5aGgL4GVYyMV9Pj7_5mYOX-Ecv59TfcWhUAkRfvxk8ydNp1f2W6B11HWiXOKD8M&utm_campaign=36387909-%5BNJ%5D%202026%20Wake%20Up%20Call&utm_medium=email&_hsenc=p2ANqtz--ypdqFzjt6YlQeSvcQ2L6ur-f3dfrpC3LBhtrLZ4qbOePmR8uo6p_Cyj44MVGYrw4Q0nK8jceKiqibg_VZpQlb2qLJhFLgjXeX0K4fwp0NAbfnvxU&_hsmi=404722735&utm_content=404722735&utm_source=hs_email
+AK-01,Public Policy Polling,2026-02-11,2026-02-12,600,41.0,37.0,4.0,https://hub.nationaljournal.com/new-maps-for-new-york-1?ecid=ACsprvtXCGX_y5aGgL4GVYyMV9Pj7_5mYOX-Ecv59TfcWhUAkRfvxk8ydNp1f2W6B11HWiXOKD8M&utm_campaign=36387909-%5BNJ%5D%202026%20Wake%20Up%20Call&utm_medium=email&_hsenc=p2ANqtz--ypdqFzjt6YlQeSvcQ2L6ur-f3dfrpC3LBhtrLZ4qbOePmR8uo6p_Cyj44MVGYrw4Q0nK8jceKiqibg_VZpQlb2qLJhFLgjXeX0K4fwp0NAbfnvxU&_hsmi=404722735&utm_content=404722735&utm_source=hs_email
+AK-01,The New York Times/Siena University,2026-06-15,2026-06-29,593,51.0,39.0,12.0,https://www.nytimes.com/interactive/2026/07/01/polls/times-siena-alaska-poll-crosstabs.html
+AZ-06,Public Policy Polling,2025-10-14,2025-10-15,581,42.0,41.0,1.0,https://www.politico.com/f/?id=00000199-fd60-dc69-abd9-fff2ed910000
+AZ-06,Ragnar Research Partners,2026-03-12,2026-03-14,400,47.0,44.0,3.0,https://punchbowl.news/article/campaigns/bad-gop-polls/
+AZ-06,Ragnar Research Partners,2026-03-12,2026-03-14,400,43.0,42.0,1.0,https://punchbowl.news/article/campaigns/bad-gop-polls/
+AZ-06,"Normington, Petts & Associates",2026-06-08,2026-06-11,500,47.0,45.0,2.0,https://www.thehousemajoritypac.com/news/new-hmp-poll-joanna-mendoza-leads-juan-ciscomani-in-az-06
+CA-06,The Bullfinch Group,2026-07-13,2026-07-16,741,39.0,35.0,4.0,https://www.semafor.com/article/07/28/2026/independent-group-eyes-delbenes-seat
+CA-22,Public Policy Polling,2025-08-06,2025-08-08,547,42.0,42.0,0.0,https://www.the-downballot.com/p/morning-digest-maine-will-decide?open=false#%C2%A7ca
+CA-22,Tulchin Research,2026-06-15,2026-06-21,800,48.0,44.0,4.0,https://www.politico.com/newsletters/playbook/2026/07/21/trump-to-hill-im-not-that-into-you-01005915
+CO-03,Expedition Strategies,2026-01-08,2026-01-12,400,48.0,39.0,9.0,https://www.politico.com/f/?id=0000019b-dcc2-d22e-a1db-dff7de8e0000
+FL-27,Kaplan Strategies,2025-07-01,2025-07-01,804,45.0,35.0,10.0,https://floridapolitics.com/archives/750168-poll-daniella-levine-cava-poses-strong-threat-to-maria-elvira-salazar-in-cd-27/
+FL-27,Blueprint Polling,2026-03-06,2026-03-08,451,47.0,40.0,7.0,https://floridapolitics.com/archives/784817-__trashed-35/
+FL-27,Blueprint Polling,2026-03-06,2026-03-08,451,46.0,43.0,3.0,https://floridapolitics.com/archives/784817-__trashed-35/
+FL-28,MDW Communications,2026-03-03,2026-03-07,514,46.0,40.0,6.0,https://floridapolitics.com/archives/788279-poll-shows-carlos-gimenezs-lead-narrowing-in-cd-28-amid-economic-policy-headwinds/
+FL-28,MDW Communications,2026-03-03,2026-03-07,514,45.0,41.0,4.0,https://floridapolitics.com/archives/788279-poll-shows-carlos-gimenezs-lead-narrowing-in-cd-28-amid-economic-policy-headwinds/
+IA-01,Public Policy Polling,2025-06-18,2025-06-19,555,43.0,39.0,4.0,https://www.politico.com/newsletters/weekly-score/2025/06/23/recruiting-candidates-in-an-age-of-political-violence-00417469
+IA-01,The Bullfinch Group,2026-07-13,2026-07-16,705,40.0,35.0,5.0,https://www.semafor.com/article/07/28/2026/independent-group-eyes-delbenes-seat
+ME-02,University of New Hampshire,2026-02-12,2025-02-16,520,48.0,47.0,1.0,https://scholars.unh.edu/cgi/viewcontent.cgi?article=1929&context=survey_center_polls
+ME-02,Pan Atlantic Research,2025-11-29,2025-12-07,387,44.0,43.0,1.0,https://punchbowl.news/article/campaigns/another-baldacci/
+ME-02,University of New Hampshire,2026-02-12,2026-02-16,521,47.0,46.0,1.0,https://scholars.unh.edu/cgi/viewcontent.cgi?article=1929&context=survey_center_polls
+ME-02,University of New Hampshire,2026-02-12,2026-02-16,521,48.0,44.0,4.0,https://scholars.unh.edu/cgi/viewcontent.cgi?article=1929&context=survey_center_polls
+ME-02,University of New Hampshire,2026-02-12,2026-02-16,522,47.0,46.0,1.0,https://scholars.unh.edu/survey_center_polls/930/
+ME-02,co/efficient,2026-04-25,2026-04-29,918,50.0,40.0,10.0,https://www.politico.com/news/2026/05/08/gop-polls-show-they-have-a-shot-at-flipping-house-dem-districts-trump-won-00910791
+MI-04,Public Policy Polling,2025-11-20,2025-11-21,559,44.0,42.0,2.0,https://x.com/jamesd0wns/status/1996180114200043757
+MI-04,Ragnar Research Partners,2026-03-12,2026-03-14,400,43.0,42.0,1.0,https://www.nytimes.com/interactive/polls/michigan-us-house-4-polls-2026.html
+MI-07,Public Policy Polling,2025-10-27,2025-10-28,557,45.0,41.0,4.0,https://www.newsweek.com/democrat-republican-swing-state-poll-michigan-10997147
+MI-07,Public Policy Polling,2025-10-27,2025-10-28,557,43.0,39.0,4.0,https://www.newsweek.com/democrat-republican-swing-state-poll-michigan-10997147
+MT-01,Upswing Research,2026-04-30,2026-05-05,401,47.0,43.0,4.0,https://x.com/PatrickSvitek/status/2054609849439199263?s=20
+MT-01,Upswing Research,2026-04-30,2026-05-05,401,48.0,43.0,5.0,https://x.com/PatrickSvitek/status/2054609849439199263?s=20
+NE-01,Zenith Research,2026-05-08,2026-05-11,371,45.0,38.0,7.0,https://x.com/iapolls2022/status/2054973794658181516?s=46
+NH-02,Saint Anselm,2026-06-24,2026-06-25,1614,50.0,31.0,19.0,https://www.anselm.edu/about/anselmian-hub/news/saint-anselm-college-survey-center-june-poll-finds-democrats-expand-generic-ballot-lead
+NJ-07,Z to A Research,2026-05-24,2026-05-26,430,47.0,43.0,4.0,https://newjerseyglobe.com/polling/pro-shah-groups-poll-also-found-bennett-leading-kean/
+NY-01,Public Policy Polling,2025-12-10,2025-12-11,579,41.0,38.0,3.0,https://www.thehousemajoritypac.com/news/new-hmp-polling-shows-nick-lalota-vulnerable-in-november
+NY-04,Impact Research,2026-02-09,2026-02-17,500,46.0,41.0,5.0,https://protectingamericanconsumers.org/wp-content/uploads/2026/02/IMPACT-NY-2026-Poll.pdf
+NY-17,Impact Research,2026-02-09,2026-02-17,500,44.0,39.0,5.0,https://protectingamericanconsumers.org/wp-content/uploads/2026/02/IMPACT-NY-2026-Poll.pdf
+NY-17,FM3 Research,2026-06-27,2026-07-01,509,51.0,45.0,6.0,https://www.politico.com/newsletters/playbook/2026/07/08/inside-the-battle-for-maine-00989731
+NY-18,Impact Research,2026-02-09,2026-02-17,500,42.0,35.0,7.0,https://protectingamericanconsumers.org/wp-content/uploads/2026/02/IMPACT-NY-2026-Poll.pdf
+OH-15,Hart Research Associates,2026-06-23,2026-06-25,550,45.0,40.0,5.0,https://www.thehousemajoritypac.com/news/hmp-poll-don-leonard-within-striking-distance-of-mike-carey-in-oh-15
+PA-07,GBAO Strategies,2026-06-29,2026-07-02,550,47.0,43.0,4.0,https://x.com/cjwarnke/status/2075190984107872361?s=20
+PA-08,Lake Research Partners,2026-06-18,2026-06-23,400,47.0,45.0,2.0,https://www.politico.com/newsletters/playbook/2026/06/26/wes-moores-vision-for-america-00977774
+PA-10,Public Policy Polling,2025-07-10,2025-07-11,559,46.0,43.0,3.0,https://www.politico.com/f/?id=00000198-0716-dedb-a3ba-1f3fcb550000
+PA-10,Public Policy Polling,2025-11-18,2025-11-19,549,48.0,44.0,4.0,https://www.pennlive.com/politics/2025/12/rep-perry-underwater-with-voters-on-job-approval-trails-democrat-who-wants-to-unseat-him-poll.html
+PA-10,Normington Petts & Associates,2026-04-20,2026-04-23,400,51.0,45.0,6.0,https://drive.google.com/file/d/11neaUtpx0qrqgxAWe5Lqh9HPIvmnsLrn/view?usp=sharing
+TX-15,Public Policy Polling,2025-09-10,2025-09-11,533,41.0,38.0,3.0,https://www.documentcloud.org/documents/26100755-tx15results1/
+TX-15,Applecart,2026-05-18,2026-05-25,802,48.0,46.0,2.0,https://welcome.team/press-releases/Blog%20Post%20Title%20One-3zaa9-zlxng-67tfc-2sf8d
+TX-23,Public Policy Polling,2026-03-10,2026-03-11,521,42.0,40.0,2.0,https://www.texastribune.org/wp-content/uploads/2026/03/TX23-PPP-poll.pdf
+TX-23,Public Policy Polling,2026-03-10,2026-03-11,521,42.0,40.0,2.0,https://www.texastribune.org/2026/03/12/brandon-herrera-democrats-texas-23rd-congressional-district-tony-gonzales/
+TX-23,Public Policy Polling,2026-03-10,2026-03-11,521,47.0,45.0,2.0,https://www.texastribune.org/wp-content/uploads/2026/03/TX23-PPP-poll.pdf
+VA-01,Public Policy Polling,2025-08-08,2025-08-09,541,47.0,47.0,0.0,https://x.com/PollTracker2024/status/1965014578812842210/photo/1
+VA-01,Ragnar Research Partners,2026-03-10,2026-03-12,400,44.0,42.0,2.0,https://punchbowl.news/article/campaigns/bad-gop-polls/
+VA-01,Public Policy Polling,2026-08-08,2026-08-09,541,41.0,40.0,1.0,https://www.the-downballot.com/p/morning-digest-kansas-republicans
+VA-02,Tulchin Research,2026-07-09,2026-07-13,700,47.0,47.0,0.0,https://www.politico.com/f/?id=0000019f-918b-d49c-ad9f-9fbb88d00000
+VT-01,University of New Hampshire,2026-06-18,2026-06-23,237,57.0,26.0,31.0,https://scholars.unh.edu/survey_center_polls/970/
+WA-03,Voter Sciences,2025-08-01,2025-08-01,0,47.55,41.29,6.259999999999998,https://wagop.org/new-congressional-district-3-poll-shows-republicans-will-win/
+WA-03,Emerson College,2026-07-08,2026-07-10,500,45.0,44.0,1.0,https://www.nwprogressive.org/weblog/2026/07/wa-03-is-still-washingtons-tossup-district-marie-gluesenkamp-perez-and-john-braun-are-tied-ahead-of-2026-top-two-election.html
+WI-03,Public Policy Polling,2025-10-14,2025-10-15,609,44.0,42.0,2.0,https://www.politico.com/f/?id=00000199-fd60-dc69-abd9-fff233550000
+WI-03,FM3 Research,2026-06-20,2026-06-25,535,50.0,46.0,4.0,https://x.com/cjwarnke/status/2074099699020128352?s=20

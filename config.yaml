@@ -1,0 +1,287 @@
+# ─── Backtest Configuration ───────────────────────────────────────────────────
+# All model parameters and pipeline toggles live here.
+# Scripts read this file via src/backtest/config.py — nothing is hard-coded.
+
+# ─── Data paths ───────────────────────────────────────────────────────────────
+paths:
+  raw:
+    fec:              data/raw/fec
+    mit:              data/raw/mit_elections
+    cook:             data/raw/cook_pvi
+    census:           data/raw/census
+    rcp:              data/raw/rcp
+    presidential:     data/raw/presidential
+    bulk_all:         data/raw/bulk_all
+    ie_comprehensive: data/raw/independent_expenditure
+    generic_ballot:   data/raw/generic_ballot
+    candidate_committee_linkage: data/raw/candidate_committee_linkage
+    committee_master: data/raw/committee_master
+    candidate_master: data/raw/candidate_master
+    all_committee_transactions: data/raw/all_committee_transactions
+  processed:      data/processed
+  outputs:        outputs
+
+# ─── Universe filters ─────────────────────────────────────────────────────────
+universe:
+  min_total_spend:        100_000          # at least one candidate above this
+  exclude_states:         ["AK"]           # ranked-choice incompatibility
+  competitive_ratings:                     # used for MSG rank-correlation test
+    - "Toss-Up"
+    - "Lean D"
+    - "Lean R"
+  # Races where redistricting produced fundamentally new seats — flag but do not exclude.
+  # 2024 cases: NC entire map redrawn by Republicans (2023 ruling); LA-06 court-ordered
+  # new majority-Black district; AL-02 reconfigured by court order; NY court-ordered maps.
+  # These races have no stable historical precedent — treat allocation signals with caution.
+  redistricting_flag_districts:
+    # North Carolina — entirely new 2024 map (Republican gerrymander, Oct 2023)
+    - "NC-01"
+    - "NC-06"
+    - "NC-07"
+    - "NC-10"
+    - "NC-13"
+    - "NC-14"
+    # Louisiana — court-ordered second Black-majority district (new seat)
+    - "LA-06"
+    # Alabama — court-ordered reconfiguration of majority-Black district
+    - "AL-02"
+    # New York — court-imposed new maps (new competitive districts)
+    - "NY-03"
+    - "NY-04"
+    - "NY-17"
+    - "NY-18"
+    - "NY-22"
+
+# ─── Historical panel ─────────────────────────────────────────────────────────
+panel:
+  cycles:   [2012, 2014, 2016, 2018, 2020, 2022]
+  min_repeat_challenger_pairs: 40          # below this, widen tau
+
+# ─── Generic ballot (2024 pre-election RCP average, D − R) ───────────────────
+generic_ballot_2024: -1.2
+generic_ballot_by_cycle:
+  2012:  1.2
+  2014: -5.8
+  2016:  1.3
+  2018:  8.6
+  2020:  7.0
+  2022: -1.0
+  2024: -1.2
+  # 2026 is NOT a final pre-election value like the cycles above — the
+  # election hasn't happened yet. This is a LIVE point-estimate from
+  # scripts/fetch_polling.py / VoteHub, meant to be refreshed at each
+  # periodic re-run of the dynamic/ live pipeline, not varied within a
+  # single run. Per the Paper II implementation plan's Phase 4A finding,
+  # this is a legitimate single-scenario input (same role as the other
+  # per-cycle constants above) — it is NOT the same as feeding a
+  # continuously time-varying GB series into coef.alpha3 within one
+  # optimization, which remains unsupported by the estimation.
+  # Refreshed 2026-07-28: the standard 21-day trailing window returned
+  # ZERO qualifying polls (generic-ballot polling has gone quiet for this
+  # cycle) -- widened to a 30-day window to get a usable estimate (2
+  # polls). Barely moved from the prior 5.02 (2026-07-07 snapshot), so
+  # this reads as a stable environment, not fresh information. Update
+  # this value (and the comment date) whenever scripts/fetch_polling.py
+  # is re-run for a fresh live snapshot; re-check whether the 21-day
+  # window has polls again before reverting to it.
+  2026: 5.00
+
+# ─── Spending response surface ────────────────────────────────────────────────
+# β_RC is estimated from the historical panel and carried forward.
+# These are populated by scripts/run_estimation.py and stored in
+# data/processed/beta_rc.json; the values below are placeholders until estimated.
+beta_rc:
+  estimate: null
+  se:       null
+  n_pairs:  null
+
+# ─── Uncertainty propagation ─────────────────────────────────────────────────
+uncertainty:
+  n_draws:         1000
+  credible_interval: 0.83                  # 83% CI (≈ ±1 SE)
+  beta_rc_bootstrap_draws: 1000            # non-parametric bootstrap of β_RC pairs (run_estimation.py)
+  permutation_draws: 2000                  # permutation tests on DCCC spending assignment (run_backtest.py)
+
+# ─── Optimizer ────────────────────────────────────────────────────────────────
+optimizer:
+  # Risk-aversion levels.  γ_mid calibrated so 1 SD variance costs 0.5 seats;
+  # γ_high calibrated so 1 SD costs 1.0 seat.  Set after σ[Seats] is known.
+  gamma_values: [0.0, null, null]          # [risk_neutral, mid, high] — nulls filled post-estimation
+  cap_regimes:  [0.05, 0.10, 0.15]        # fraction of total budget
+  min_allocation: 0.0                      # no negative spending
+
+# ─── Persuasion ceiling (added 2026-07-24, codebase-audit follow-up) ──────────
+# Regularizes the log-ratio spending response against unbounded extrapolation
+# at near-zero candidate floors. Without this, the corrected sigma model
+# (2026-07-23b) no longer suppresses the raw model's 1/D gradient blowup, and
+# the optimizer recommends implausible sums into Safe-tier races with no
+# historical support for such an effect (see FINDINGS.md's persuasion-ceiling
+# section for the full diagnosis and the C_max robustness sweep).
+#
+# C_i = c_max * 4*Phi0*(1-Phi0), where Phi0 = Phi(mu_floor/sigma_i) is a
+# race's win probability at its own candidate-only floor (no party money).
+# This caps the achievable margin shift from party spending at C_i points,
+# peaking at c_max for a true toss-up (Phi0=0.5) and shrinking to ~0 at
+# either extreme -- the model is not permitted to infer a spending effect
+# larger than a multiple of the race's own uncertainty, scaled by how
+# persuadable its current state suggests it is.
+#
+# c_max=10.0 chosen from the sweep {3,5,7,10,15,20,30}: all values in this
+# range behave smoothly (no fragile threshold), but 5-10 gives the best
+# ratio of competitive-tier to non-competitive-tier seat gain before
+# non-competitive (mostly Likely-tier) reallocation starts dominating the
+# additional gain at larger c_max. Safe-only budget share is ~9% at c_max=10
+# vs. 45% uncapped.
+persuasion_ceiling:
+  c_max: 10.0
+  # Floor-maturity reference (docs -- model/ceiling.py's maturity()):
+  # combined D+R candidate-only floor spend, in dollars, above which a
+  # race's ceiling is treated as fully calibrated (maturity=1.0). Set to
+  # the 25th percentile of combined (cand_d_total + r_total) across the
+  # 53 Cook Toss-Up/Lean D/Lean R races in the 2024 cycle-FINAL universe
+  # (computed directly: build_universe(2024) -> competitive_subset(),
+  # 2026-08-04) -- i.e. "even a below-median competitive race, by the end
+  # of the cycle, has raised at least this much." Deliberately NOT the
+  # median (~$10.9M) or higher: using a threshold most final-cycle races
+  # clear only barely would itself distort Paper I's validated headline
+  # numbers, which this correction must leave untouched. Only used when a
+  # caller explicitly passes floor_maturity to optimize_nonlinear() --
+  # Paper I's own pipeline never does, so its numbers are unaffected
+  # regardless of this value.
+  floor_maturity_reference_dollars: 6915157.56
+
+# ─── Validation gate thresholds ───────────────────────────────────────────────
+validation:
+  spending_completeness_min: 0.80          # ~36 safe D seats have no R spend → one-sided OK
+  margin_model_r2_pass:      0.40
+  margin_model_r2_stretch:   0.60
+  sigma_ordering_frac_min:   0.00          # D challengers run in R-leaning districts (selection
+                                           # effect) → lower σ; empirical incumb≈open>chall is correct
+  brier_tolerance:           0.05          # model Brier ≤ Cook Brier + 0.05
+
+# ─── Cook rating → win probability conversion ─────────────────────────────────
+cook_win_probs:
+  "Safe D":    0.97
+  "Likely D":  0.85
+  "Lean D":    0.70
+  "Toss-Up":   0.50
+  "Lean R":    0.30
+  "Likely R":  0.15
+  "Safe R":    0.03
+
+# ─── Output ───────────────────────────────────────────────────────────────────
+outputs:
+  material_divergence_threshold: 0.01     # |difference| > 1% of budget = material
+  concentration_flag_threshold:  0.15     # flag any race receiving > 15% of budget
+
+# ─── 2026 live budget projection (Paper II §7.1) ──────────────────────────────
+# BUDGET_2026 is DERIVED, not typed here directly: see
+# backtest.model.budget.estimate_budget_2026(), which averages the 2018 and
+# 2022 midterm party-controlled budgets (each computed live from
+# build_universe(), same formula as scripts/run_backtest.py's party_budget),
+# inflated to 2026-equivalent dollars via BLS CPI-U (series CUUR0000SA0).
+# The raw CPI index values below are genuine external inputs (BLS data this
+# repo does not itself fetch) -- not re-derivable from anything else here --
+# so they are the one thing in this block that must be hand-updated when a
+# newer CPI release changes them. Previously this whole derivation existed
+# only as prose in docs/paper2_draft.md §7.1, with BUDGET_2026 hardcoded as
+# an independent literal in scripts/plot_2026_live_allocation.py (Paper III
+# audit, 2026-07-16).
+budget_2026_projection:
+  base_cycles: [2018, 2022]      # party-controlled budgets averaged, each own-cycle-CPI-inflated
+  cpi_nov_2018: 252.038          # BLS CPI-U, series CUUR0000SA0
+  cpi_nov_2022: 297.711
+  cpi_nov_2025: 324.122
+  trailing_yoy_rate: 0.0425      # as of May 2026, applied to Nov 2025 CPI to project Nov 2026
+
+# ─── Dynamic allocation (Paper II — src/backtest/dynamic/) ───────────────────
+# Sequential/receding-horizon architecture. Paper I above is unaffected by
+# this block. See docs/paper2_draft.md §3.3 for f_baseline (EMA) and §3.2
+# for the commitment-source (L_t) research/operational mode distinction.
+dynamic:
+  ema_lambda: 0.7                # f_baseline smoothing constant (paper §3.3)
+  reporting_cadence: "biweekly"  # "biweekly" | "fec_quarterly" (dynamic/periods.py)
+  commitment_mode: "zero"        # "zero" | "operational" | "research_stub" (dynamic/ledger.py)
+  period_days: 14                # biweekly grid spacing (dynamic/periods.py's biweekly_periods()) --
+                                  # single source of truth; previously re-typed as an independent
+                                  # literal in scripts/simulate_and_validate.py and
+                                  # scripts/solve_bellman_lsm.py (Paper III audit, 2026-07-16)
+  election_day_2026: "2026-11-03"  # official 2026 House general election date -- single source
+                                    # of truth; previously re-typed independently in
+                                    # scripts/solve_bellman_lsm.py and scripts/estimate_gb_ou_drift.py
+
+# ─── Live-cycle ballot exclusions ─────────────────────────────────────────────
+# fec.py's `_ballot_last_names()` filters out >$10M candidate-committee
+# disbursements from anyone not on the general-election ballot (e.g. a House
+# member who ran for Senate/President instead) using MIT MEDSL's
+# 1976-2024-house.tab -- which by construction cannot cover a cycle still in
+# progress; MIT only publishes GEN-stage results after a cycle's election. For
+# a live cycle this leaves that automated filter with nothing to check
+# against (see the logger.warning() this triggers), so large disbursements
+# from candidates who moved to a different race or lost their House primary
+# pass through unfiltered until MIT's data catches up post-election.
+#
+# This block is a manually verified, dated, interim substitute for the live
+# cycle only -- each entry checked individually against Ballotpedia/FEC.gov,
+# not derived from any automated ballot-membership check. Re-verify (and
+# extend) before each live re-run; entries do not expire automatically.
+#
+# Despite the "live_cycle" name, completed-cycle entries (2022, 2024 below)
+# belong here too, for a DIFFERENT reason than the live-cycle case: MIT data
+# exists and already correctly excludes these candidates automatically via
+# _ballot_last_names() (confirmed directly, not assumed), but fec.py's
+# _LARGE_SPEND_THRESHOLD ($10M) gate skips that automated check entirely for
+# any candidate under it -- so a misattributed committee whose disbursements
+# happen to land under $10M slips through unfiltered regardless of what MIT
+# says. Manual entries bypass that gate (fec.py's _on_ballot() checks them
+# first, unconditionally). Found 2026-08-10 via the data-quality audit's
+# bivariate PVI-vs-model-disagreement check (docs/data_quality_audit.md).
+live_cycle_ballot_exclusions:
+  2026:
+    - district_id: "FL-06"
+      party: "D"
+      last_name: "WEIL"
+      reason: >-
+        Lost the 2025 FL-06 special election to Randy Fine (2025-04-01); announced
+        a US Senate run (2025-06-18) then withdrew (2025-08-01, medical). Not a
+        2026 FL-06 candidate. Verified 2026-07-23 via Ballotpedia/WLRN.
+    - district_id: "IL-08"
+      party: "D"
+      last_name: "KRISHNAMOORTHI"
+      reason: >-
+        Ran for US Senate (IL), not House, in 2026; lost the March 17, 2026
+        Senate Democratic primary to Juliana Stratton. Not an IL-08 candidate
+        this cycle. Verified 2026-07-23 via Ballotpedia.
+    - district_id: "MD-06"
+      party: "D"
+      last_name: "TRONE"
+      reason: >-
+        Challenged incumbent Rep. April McClain Delaney for his old MD-06 seat
+        but lost the June 23, 2026 Democratic primary -- not the 2026
+        general-election nominee. Verified 2026-07-23 via The Banner/Ballotpedia.
+  2024:
+    - district_id: "AZ-09"
+      party: "D"
+      last_name: "SINEMA"
+      reason: >-
+        Kyrsten Sinema was Arizona's sitting independent U.S. Senator in 2024
+        and did not seek re-election to any office; not a 2024 AZ-09 House
+        candidate. Her FEC committee (C00508804) still carries her original
+        House candidate ID (H2AZ09019) from her 2013-2019 AZ-09 tenure, so her
+        2024 Senate-committee disbursements ($9,272,137.32 -- a spend-down as
+        she left office, under the $10M automated-filter threshold) were
+        misattributed to AZ-09 in candidate_disbursements_2024.csv. Confirmed
+        absent from AZ-09's MIT ballot data. Verified 2026-08-10 via
+        data/raw/candidate_master (her separate Senate ID is S8AZ00197) and
+        FEC.gov.
+  2022:
+    - district_id: "AZ-09"
+      party: "D"
+      last_name: "SINEMA"
+      reason: >-
+        Same misattribution as the 2024 entry above -- Sinema was Arizona's
+        sitting Senator in 2022 too (not up for re-election that cycle), and
+        her Senate committee's 2022 disbursements ($2,332,394.79, also under
+        the $10M threshold) were likewise tagged with her stale AZ-09 House
+        candidate ID. Confirmed absent from AZ-09's MIT ballot data. Verified
+        2026-08-10.

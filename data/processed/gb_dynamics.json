@@ -1,0 +1,8 @@
+{
+  "sigma_g_per_sqrt_day": 0.183805867382027,
+  "reference_horizon_days": 120.0,
+  "lambda_decay": 0.0053622075108426944,
+  "tau_days": 186.4903583044748,
+  "lambda_fit_A": 9.740780365263904,
+  "source": "scripts/estimate_gb_volatility.py, historical-only (4-cycle) pooled term structure"
+}

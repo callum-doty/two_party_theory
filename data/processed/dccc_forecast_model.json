@@ -1,0 +1,43 @@
+{
+  "features": [
+    "pvi",
+    "abs_pvi",
+    "is_challenger",
+    "is_open",
+    "cook_ordinal",
+    "cand_ratio_t",
+    "r_ratio_t",
+    "generic_ballot"
+  ],
+  "selection_params": {
+    "const": -1.0332868201598178,
+    "pvi": 0.013627814726564635,
+    "abs_pvi": -0.17890976312726178,
+    "is_challenger": 0.728537629850026,
+    "is_open": 0.9927969533905922,
+    "cook_ordinal": -0.037201442229968844,
+    "cand_ratio_t": 148.49857723065938,
+    "r_ratio_t": 25.4081523792167,
+    "generic_ballot": 0.06726408317055879
+  },
+  "intensity_params": {
+    "const": -4.553407648094186,
+    "pvi": 0.008128194640648474,
+    "abs_pvi": -0.024968859751604885,
+    "is_challenger": 0.12314543452236104,
+    "is_open": -0.026601330436481163,
+    "cook_ordinal": -0.031300757385112704,
+    "cand_ratio_t": 8.617138844002753,
+    "r_ratio_t": 29.27212363953835,
+    "generic_ballot": -0.025600297860544324
+  },
+  "trained_on_cycles": [
+    2012,
+    2014,
+    2016,
+    2018,
+    2020,
+    2022,
+    2024
+  ]
+}

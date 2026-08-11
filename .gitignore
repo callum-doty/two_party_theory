@@ -1,0 +1,41 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# Processed artifacts (data/processed/) are committed intentionally, alongside
+# data/raw/, so estimation-artifact drift is visible via `git diff` -- same
+# convention as the source project (Political Portfolio/.gitignore).
+
+# Raw FEC bulk "all committee transactions" files are multi-GB and exceed
+# GitHub's 100MB per-file limit. Keep these local-only; re-fetch via
+# scripts/fetch_data.py.
+data/raw/all_committee_transactions/
+data/_refresh_backup_*/
+
+# Local result/output artifacts -- regenerate via scripts/*.py, don't commit
+# multi-minute solver output by default. Small headline JSON summaries can be
+# force-added deliberately when a result is meant to be citable/tracked.
+outputs/
+results/*.json
+results/*.csv
+!results/.gitkeep
+
+# Manim renders are regenerable from results/ + visuals/scenes/, not source.
+visuals/renders/
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

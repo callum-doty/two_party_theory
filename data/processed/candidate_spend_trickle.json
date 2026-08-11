@@ -1,0 +1,65 @@
+{
+  "cycles_used": [
+    2012,
+    2014,
+    2016,
+    2018,
+    2020,
+    2022,
+    2024
+  ],
+  "cycles_skipped_no_data": [],
+  "period_days": 14,
+  "by_tier": {
+    "Safe D": {
+      "n_obs": 20474,
+      "median_rate_per_day": 0.0,
+      "mean_rate_per_day": 3034.465001255948,
+      "std_rate_per_day": 12726.623214399358
+    },
+    "Likely D": {
+      "n_obs": 5341,
+      "median_rate_per_day": 0.0,
+      "mean_rate_per_day": 4488.534087650788,
+      "std_rate_per_day": 19493.654488464996
+    },
+    "Lean D": {
+      "n_obs": 4255,
+      "median_rate_per_day": 0.0,
+      "mean_rate_per_day": 7563.539219237872,
+      "std_rate_per_day": 28728.153633800783
+    },
+    "Toss-Up": {
+      "n_obs": 3060,
+      "median_rate_per_day": 0.0,
+      "mean_rate_per_day": 7193.2638298319325,
+      "std_rate_per_day": 29857.463324043933
+    },
+    "Lean R": {
+      "n_obs": 1449,
+      "median_rate_per_day": 0.0,
+      "mean_rate_per_day": 5796.847023070098,
+      "std_rate_per_day": 23365.919983253232
+    },
+    "Likely R": {
+      "n_obs": 4404,
+      "median_rate_per_day": 0.0,
+      "mean_rate_per_day": 4507.105601887894,
+      "std_rate_per_day": 18999.73218585886
+    },
+    "Safe R": {
+      "n_obs": 18774,
+      "median_rate_per_day": 0.0,
+      "mean_rate_per_day": 1274.3399321630218,
+      "std_rate_per_day": 8461.487538335705
+    },
+    "_pooled": {
+      "n_obs": 57757,
+      "median_rate_per_day": 0.0,
+      "mean_rate_per_day": 3332.384403424198,
+      "std_rate_per_day": 16399.044871410526
+    }
+  },
+  "preferred_estimator": "mean_rate_per_day",
+  "note": "mean preferred over median: checked directly against real 2022/2024 data, median_rate_per_day is exactly $0.00/day in every tier -- a structural artifact of comparing FEC's quarterly filing cadence against this project's biweekly period grid (most 14-day windows contain no new filing at all), not a robust central-tendency estimate. Mean captures the real filing-date jumps and is the smoothed drift rate solve_bellman_lsm.py's wait branch actually needs; see this script's module docstring."
+}
