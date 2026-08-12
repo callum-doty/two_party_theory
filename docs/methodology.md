@@ -62,26 +62,230 @@ which should hurt D there specifically, yet the AGGREGATE effect across all
 retention as a real but occasionally counterintuitive statistic, not one
 that's always boundable to [0%, 100%].
 
-## Shared probability model, not two calibrated formulas
+## Shared probability model: fixed baseline, signed saturation (rewritten 2026-08-12; supersedes the "D-anchored formula" design below)
 
-`game/payoff.py` and `game/gradients.py` use ONE p_i(D, R) model for both
-sides' utilities and both sides' gradients: the D-anchored margin/ceiling
-construction from `backtest.optimizer.allocator`, which IS empirically
-calibrated against real DCCC spending-response data. R's spending enters
-only through the shared `total_r` argument.
+**Status as of 2026-08-11 (superseded the same day):** the paragraph
+originally here described `game/payoff.py` reusing the D-anchored
+margin/ceiling formula for both sides, while `BR_R` still searched through
+`backtest.optimizer.nash.best_response()`'s separate, uncalibrated mirrored
+ceiling and only re-scored the result via the D-side formula afterward. That
+split was flagged as the highest-priority open issue: a Nash equilibrium
+requires each side to actually maximize the SAME utility function it's
+reported against, and `BR_R` never did.
 
-This is a deliberate departure from `backtest.optimizer.nash.py`, which
-scores R's own best-response SEARCH through a separate, uncalibrated
-mirrored-ceiling formula (documented there as a stated assumption, not a
-validated one) and then RE-SCORES the result through the D-side formula for
-reporting. This project's `game/best_response.py` still calls that same
-`nash.best_response()` under the hood for `BR_R` (no reason to re-derive a
-working, already-debugged SLSQP solve) -- but every OTHER quantity
-(`MSG^R`, `U_R`, exploitability, PSV) is computed through the single shared
-`payoff.p_win`, so nothing in this project's own reporting layer mixes two
-different implicit beliefs about the same allocation. See
-`game/gradients.py`'s module docstring for the derivation of `d p / d R`
-this required (no counterpart existed in the old codebase).
+**The "obvious" fix broke worse.** Rewriting `BR_R` to search directly
+against the literal D-anchored formula (`payoff.p_win`, `total_r` passed in
+raw) -- "no old mirrored objective under the hood," exactly what the
+one-formula requirement calls for -- was implemented, tested (gradient
+correctness, local-optimum checks), and run against the real 2024 universe.
+`regret_R` did not converge toward the old ~9.7-seat figure; it INCREASED,
+to 16.06 (2022) and 9.66→16-range instability depending on run. Inspecting
+the actual allocation explained why: R's optimizer dumped ~$3M each into
+races like **HI-02** (R candidate-committee spend on record: **$10**),
+TX-20, and NC-04 -- safe D seats with essentially no Republican presence --
+dragging modeled D win probability from ~99% down to ~30-40%. Compare the
+OLD mirrored-ceiling search: it spread R's budget across 134 races,
+concentrated where R already had real committee money (FL-27, FL-28, NC-06,
+six-to-seven-figure existing spend). The literal D-anchored formula was
+never a symmetric two-player payoff -- it only regularizes `mu_raw`'s
+excursion ABOVE `mu_floor` (D's own diminishing-returns cap, calibrated
+against DCCC data); nothing bounds how far `mu_floor` itself falls as R's
+total grows, because `mu_floor` is re-derived at whatever R total is
+plugged in. The old mirrored ceiling, despite being uncalibrated, was doing
+real regularization work the "exact" fix silently discarded. This was
+caught before landing: the change was reverted (`git checkout`) rather than
+shipped with a worse number than what it replaced.
+
+**The real fix: one payoff, fixed baseline, signed saturation.**
+`game/payoff.py::baseline_arrays/p_win_shared/grad_shared` replace the
+moving D-side floor with a FIXED, party-neutral one:
+
+```
+mu_0_i    = mu_raw(F^D_i, F^R_i)                    # both sides' UNCONTROLLED floor
+C_i       = c_max * 4*Phi(mu_0_i/sigma_i)*(1-Phi(mu_0_i/sigma_i))   # same shape as the old ceiling
+Δmu_raw_i = mu_raw(F^D_i + x_D_i, F^R_i + x_R_i) - mu_0_i
+Δmu_cap_i = C_i * tanh(Δmu_raw_i / C_i)              # SIGNED, symmetric saturation
+mu_i      = mu_0_i + Δmu_cap_i                       # so mu_0_i - C_i < mu_i < mu_0_i + C_i, always
+p_i       = Phi(mu_i / sigma_i)
+```
+
+`F^D`/`F^R` are `estimation.control_provenance.apply_control_floor`'s
+existing uncontrolled floors (candidate + state party + outside --
+`RaceRecord.cand_d_total` and the separately-returned `cand_r_total`
+array), already threaded through this codebase; no new data dependency.
+`C_i` keeps the original ceiling's exact functional form (`c_max *
+4*p(1-p)`, already party-symmetric since `p(1-p) = (1-p)p`) -- only its
+ANCHOR changes, from a moving D-side floor to the fixed two-sided baseline.
+`tanh` (not the original one-sided `exp` form) is used because it is smooth
+and antisymmetric by construction (`g(-z) = -g(z)`): there is exactly one
+`p_i(x_D, x_R)`, used as both the search objective and the reported score
+for both sides, with analytic gradients (`grad_shared`) differentiable
+everywhere. `c_max` is still the single DCCC-calibrated value from
+`config.yaml`, applied identically to R -- an explicit, stated assumption
+(same status the old mirrored ceiling's `c_max` carried), not an
+independently-validated NRCC figure.
+
+Validated in stages before touching the live pipeline (all in
+`tests/test_shared_payoff.py` and `tests/test_best_response_shared.py`):
+bounds hold (`mu_0 - C < mu < mu_0 + C`) under arbitrarily large one-sided
+spending by either side; HI-02/TX-20/NC-04-style near-zero-floor races no
+longer collapse (a $3M unilateral R dump now saturates immediately, leaving
+the seat at ~99%, not ~33%); the saturation step itself is sign-symmetric
+(a full race-level D<->R mirror test does NOT hold, but that's the
+underlying margin regression's `log(D/(D+R))` market-share form -- not
+antisymmetric under swap the way `log(D/R)` log-odds would be -- a
+pre-existing, separately-tracked property (Section 19), not something this
+fix changes or should paper over); on the real 2022/2024 universes, the
+ceiling binds on only 2-3% of races (the highest-spend, most competitive
+ones), median saturation `q=0` -- it regularizes genuine extrapolation, not
+ordinary observed data.
+
+`game/best_response.py`, `gradients.py`, `exploitability.py`,
+`persistent_value.py`, and `equilibrium.py` were all rewired onto
+`p_win_shared`/`grad_shared`; `game/equilibrium.py::solve_nash` no longer
+delegates to `backtest.optimizer.nash` at all -- both sides' best-response
+solves and the Gauss-Seidel/Jacobi dynamics are self-contained in `game/`
+now. `payoff.p_win`/`race_arrays_at` (the old D-anchored functions) and
+`expected_seats_d`/`expected_seats_r` were deleted once nothing referenced
+them; callers now use `p_win_shared` directly.
+
+**A real divide-by-zero bug was caught in the rewire, not before.**
+`grad_shared`'s first version computed `1/total_d` and `1/(total_d+total_r)`
+using the UNCLAMPED totals, while `p_win_shared`'s own `_mu_raw` correctly
+clamps both to `>= $1` (matching `predict_floor_margin`'s
+`floor_dollars=1.0` convention). Any race with `F^D + x_D` exactly `$0`
+(zero floor, zero party spend) hit a real division by zero, producing NaN
+gradients that corrupted the SLSQP search silently enough to produce a
+logically impossible `regret_D < 0` on the real universe -- caught by
+`tests/test_exploitability_real_universe.py`'s existing ballpark assertion,
+exactly the kind of bug class `docs/methodology.md`'s R-side rescoring fix
+(2026-08-10) already warned this project is prone to. Fixed by clamping `d`,
+`r`, `t` the same way inside `grad_shared` before dividing.
+
+## Corrected headline exploitability (2026-08-12; supersedes the 2026-08-11 control-floor numbers above)
+
+One-shot unilateral exploitability under the fixed, symmetric payoff,
+replicating cleanly across both historical cycles:
+
+| Cycle | RegretD | RegretR | E (total) | E as % of E[D seats] |
+|---|---|---|---|---|
+| 2022 | 3.03 | 2.41 | 5.44 | 2.53% |
+| 2024 | 2.84 | 2.30 | 5.14 | 2.37% |
+
+This REVERSES the asymmetric narrative every earlier version of this
+project reported (RegretR > RegretD, "Republicans have more to gain than
+Democrats"): RegretD is the larger term in both cycles now. That earlier
+asymmetry was itself partly an artifact -- the OLD mirrored ceiling, while
+better-behaved than the literal D-anchored formula, was still looser than
+the fixed, two-sided ceiling both sides now share. `RegretD` barely moved
+from the control-floor-fix numbers above (2.36/2.85 -> 2.84 now for 2024;
+D's side was never the one exploiting an unregularized extrapolation).
+`RegretR` roughly halved (2024: 3.23 under the mirrored ceiling -> 2.30
+under the fixed ceiling; other historical versions of this project reported
+figures as high as 9.66 for the same cycle under an even looser rescoring
+convention). `docs/results_2022_2024.md` has been refreshed against this
+payoff (2026-08-12) -- exploitability/taxonomy/PSV via exact SLSQP, Nash via
+the validated surrogate below.
+
+## Nash equilibrium: a real limit cycle, not a solver tuning issue (2026-08-12)
+
+`docs/results_2022_2024.md` previously reported clean Nash convergence
+(`converged: Yes`, 3-start agreement within ~$5-7K) under the OLD payoff.
+Re-run under the fixed, symmetric payoff, `game/equilibrium.py`'s damped
+Gauss-Seidel best-response dynamics do NOT converge to `RegretD(D*,R*) ~=
+RegretR(D*,R*) ~= 0` -- they settle into a small, bounded, non-shrinking
+oscillation instead, confirmed under two independent damping regimes:
+
+| Cycle | theta | rounds | RegretD at star | RegretR at star | converged | last-20-round allocation delta |
+|---|---|---|---|---|---|---|
+| 2024 | 0.5 | 150 | 0.150 | 0.514 | No | oscillating $1.9M-5.6M, no shrinking trend |
+| 2024 | 0.2 | 300 | 0.138 | 0.595 | No | oscillating $530K-1.4M, no shrinking trend |
+| 2022 | 0.5 | 150 | 0.064 | 0.592 | No | oscillating $1.5M-7.2M, no shrinking trend |
+| 2022 | 0.2 | 300 | 0.092 | 0.678 | No | oscillating $857K-2.4M, no shrinking trend |
+
+Halving the damping step and doubling the round budget shrank the
+oscillation's AMPLITUDE (roughly proportionally) but did not remove it --
+`RegretR` at the fixed point was, if anything, slightly worse at the more
+conservative setting. Two different damping regimes agreeing on "cycles,
+doesn't converge" across two different historical cycles is strong evidence
+this is a genuine property of the game's best-response dynamics, not
+numerical noise or an under-tuned solver: the residual regret band
+(~0.06-0.15 seats D-side, ~0.51-0.68 seats R-side) is small relative to the
+observed-allocation regrets above (3.0/2.8 and 2.4/2.3), so the dynamics ARE
+finding a genuine near-equilibrium region -- they just don't settle inside
+it. Plausible explanations, none yet distinguished: a mixed-strategy
+equilibrium (no pure-strategy fixed point exists for Gauss-Seidel to find);
+multiple pure equilibria the dynamics orbit between; or a structural
+near-tie in marginal race values that flips which races look most
+attractive from round to round. `project_spec.md` Section 12 explicitly
+asks for a "presence of cycles" diagnostic -- this is that diagnostic
+firing, not a bug to chase further with more rounds at these damping
+settings. `iterate_best_response`'s `cycle_detected` heuristic (checks only
+whether the last 4 rounds' combined delta shrank monotonically) did NOT
+flag this -- the oscillation period is longer than 4 rounds -- and should be
+revisited if this becomes a tracked diagnostic rather than a one-off finding.
+
+Raw run data: `results/nash_check_full.json` (theta=0.5), `results/
+nash_check_lowdamp.json` (theta=0.2); per-cycle equilibrium allocations
+saved as `results/nash_{full,lowdamp}_party_{d,r}_{cycle}.npy`.
+
+## Concave-envelope surrogate, validated for BOTH sides (2026-08-12)
+
+The SLSQP solves above are slow enough (~20-30s/call) that a thorough Nash
+search (many rounds, several starts) costs hours. `src/optimizer/
+concave_surrogate.py` already had a validated fast alternative for D
+(`surrogate_allocate`, ~2,000-2,700x faster, within 0.11-0.19 expected seats
+of the true optimum -- `scripts/theta_concave_surrogate.py`), but its R-side
+mirror (`surrogate_allocate_r`) was built on the old mirrored-ceiling
+formula and explicitly flagged as never validated -- `project_spec.md`
+Section 12's "symmetrical validation for both players" was still
+outstanding.
+
+Since both sides now search the SAME `payoff.p_win_shared`, one surrogate
+serves both: `game/best_response_surrogate.py::br_d_surrogate/
+br_r_surrogate` reuse `build_concave_segments`/`greedy_allocate` UNCHANGED
+(that machinery only needs a `payoff_fn(party, arrays) -> array` closure,
+regardless of which formula it wraps), evaluating each race's own-side
+payoff curve on a grid, taking its piecewise-linear concave upper envelope,
+and solving the envelope relaxation exactly via greedy water-filling
+(sort every race-segment by slope, fill highest-slope-first until budget is
+exhausted) -- no SLSQP iteration at all.
+
+Validated against exact SLSQP on both real cycles before being trusted for
+anything: objective value agrees within **0.03-0.10 expected seats**
+(BR_D: +0.061/2024, +0.096/2022; BR_R: +0.028/2024, +0.081/2022) at
+**~500-1,000x speedup** (32.5s -> 0.033s for BR_D on 2024; 16.3s -> 0.034s
+for BR_R). Allocation-level L1 differences are larger ($4-14M) than the
+objective-value agreement would suggest -- consistent with this project's
+own repeated finding that the objective has a wide, flat region near its
+optimum (many different allocations achieve nearly the same aggregate
+value), not evidence the surrogate is picking a meaningfully worse point.
+
+Used to re-run the Nash search far more thoroughly than SLSQP could
+feasibly manage: 3 starts x 2,000 rounds (10x the round budget of the
+exact-SLSQP checks above) completed in ~7 minutes per cycle, confirming the
+limit-cycle finding independently and more decisively -- see
+`docs/results_2022_2024.md`'s Nash equilibrium section for the numbers.
+Raw allocations: `results/nash_surrogate_party_{d,r}_{cycle}.npy`.
+
+**A verification pitfall worth recording**: the first attempt to check
+`RegretD(D*, R*)` at the surrogate's 2,000-round fixed point via exact
+SLSQP came back NEGATIVE (`-0.17` for 2024) -- logically impossible on its
+face, since `br_d`'s own argmax can never score worse than the specific
+point `(D*, R*)` it's being compared against. Cause, found immediately: the
+check called `br.br_d(..., x0=None)`, which defaults to starting SLSQP from
+**zero** D spending -- a cold start that let SLSQP's local search settle
+into a genuinely worse local optimum than `D*` (itself the product of 2,000
+rounds of iterative improvement, i.e. already a good starting point). Not a
+bug in `br_d`, `p_win_shared`, or the surrogate -- a bug in the CHECK.
+Re-run with `x0=D*` (warm-started, so SLSQP can only find something at
+least as good), both regrets came back cleanly positive
+(`docs/results_2022_2024.md`'s numbers). Any future spot-check of a
+best-response solver against a point it did NOT itself produce should warm-
+start from that point, not from the solver's own default -- a cold start
+can manufacture a spurious negative regret purely from which local optimum
+SLSQP happens to land in, independent of whether the formula or the search
+is actually correct.
 
 ## The PSV baseline choice (spec Section 14)
 
@@ -233,6 +437,7 @@ data_catalog.md` has the full before/after table.
 
 ## Known open items (see spec Section 19, addressed only partially)
 
-- **D/R elasticity symmetry test**: not implemented (`scripts/estimate_response_model.py::test_d_r_symmetry` raises `NotImplementedError` with what it would take). Until run, treat `MSG^R` as "D's mirrored elasticity," an assumption, not a tested symmetric response curve.
-- **R-side concave surrogate validation**: not benchmarked against `backtest.optimizer.nash.best_response("R", ...)` the way the D-side surrogate was.
+- **D/R elasticity symmetry test**: not implemented (`scripts/estimate_response_model.py::test_d_r_symmetry` raises `NotImplementedError` with what it would take). Until run, treat `MSG^R` as "D's mirrored elasticity," an assumption, not a tested symmetric response curve. The 2026-08-12 payoff fix makes both sides share one formula, but `c_max` applied identically to R is still unvalidated for R specifically -- this test would also bear on whether a common `c_max` is defensible, not just `beta_D = beta_R`.
+- ~~**R-side concave surrogate validation**~~: closed 2026-08-12 -- see "Concave-envelope surrogate, validated for BOTH sides" above. `game/best_response_surrogate.py` replaces the old, never-validated `surrogate_allocate_r`; benchmarked against the current `game/best_response.py::br_d/br_r` directly.
 - **Level D five-way benchmark comparison**: only the Nash-vs-observed L1 distance is wired up so far.
+- **Nash equilibrium does not converge under best-response dynamics** (2026-08-12): confirmed under two damping regimes on both cycles -- see the dedicated section above. Open questions: does a mixed-strategy equilibrium exist and is it computable here; do multiple pure equilibria exist and is the game's structure characterizable well enough to enumerate them; would a genuinely different dynamic (e.g. simultaneous/Jacobi rather than Gauss-Seidel, or a fictitious-play average-strategy tracker) behave differently. `docs/results_2022_2024.md` needs a full re-run against the current payoff before any of its headline numbers (exploitability OR Nash) are cited again.

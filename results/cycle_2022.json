@@ -3,92 +3,71 @@
   "n_races": 433,
   "budget_d": 99491434.45000002,
   "budget_r": 91435449.22,
-  "cap_fraction_d": 0.15,
-  "cap_fraction_r": 0.15,
   "exploitability": {
-    "e_seats_d_obs": 214.84970466191243,
-    "e_seats_r_obs": 218.15029533808757,
-    "regret_D": 2.346765605656884,
-    "regret_R": 3.550424924995667,
-    "exploitability": 5.897190530652551,
-    "pct_of_one_seat": 589.7190530652551,
-    "pct_of_competitive_seats": 2.744798062409428
+    "e_seats_d_obs": 215.1681743633097,
+    "e_seats_r_obs": 217.8318256366903,
+    "regret_D": 3.0346690808953554,
+    "regret_R": 2.408054503450927,
+    "exploitability": 5.4427235843462825,
+    "pct_of_one_seat": 544.2723584346282,
+    "pct_of_competitive_seats": 2.5295207343983357
   },
-  "nash": {
-    "converged": true,
-    "n_iterations": 10,
-    "e_seats_d": 214.68592507159883,
-    "e_seats_r": 218.31407492840117,
-    "multi_start_agreement": {
-      "converged_all": true,
-      "agree_within_tolerance": true,
-      "max_pairwise_party_d_diff": 5554.513069250104,
-      "max_pairwise_party_r_diff": 6682.570224609391,
-      "per_start_converged": {
-        "observed": true,
-        "uniform": true,
-        "zero": true
-      },
-      "per_start_e_seats_d": {
-        "observed": 214.68592507159883,
-        "uniform": 214.6865831690876,
-        "zero": 214.68686233146667
-      },
-      "per_start_n_iterations": {
-        "observed": 10,
-        "uniform": 10,
-        "zero": 10
-      }
-    }
+  "quadrant_counts": {
+    "possible over-capitalization": 197,
+    "Democratic opportunity": 103,
+    "Republican opportunity": 60,
+    "under-contested / escalation pressure": 73
   },
-  "l1_distance_observed_to_nash": 326653444.10927904,
+  "psv_baseline": "isolated",
+  "psv_baseline_e_seats_d": 212.76011985985878,
+  "psv_baseline_e_seats_r": 214.79715655579494,
   "persistent_value_D": [
     {
       "district_id": "FL-27",
       "delta": 100000.0,
-      "V_uni": 0.006236805094033571,
-      "PSV": 0.006023561818238932,
-      "erosion": 0.00021324327579463898,
-      "retention_rate": 0.9658088921203201
+      "V_uni": 0.006464940764175253,
+      "PSV": 0.006317546857872003,
+      "erosion": 0.00014739390630325033,
+      "retention_rate": 0.9772010430288832
     },
     {
       "district_id": "AZ-02",
       "delta": 100000.0,
-      "V_uni": 0.004572569627725898,
-      "PSV": 0.0053324931081988325,
-      "erosion": -0.0007599234804729349,
-      "retention_rate": 1.166191778877487
+      "V_uni": 0.005134215242435403,
+      "PSV": 0.0030915437745306917,
+      "erosion": 0.002042671467904711,
+      "retention_rate": 0.6021453383914277
     },
     {
       "district_id": "WI-03",
       "delta": 100000.0,
-      "V_uni": 0.0037754516739028077,
-      "PSV": 0.0038080202078560887,
-      "erosion": -3.2568533953281076e-05,
-      "retention_rate": 1.0086263940758151
+      "V_uni": 0.0040527306846911415,
+      "PSV": 0.00393015134164898,
+      "erosion": 0.00012257934304216178,
+      "retention_rate": 0.9697538887779552
     },
     {
       "district_id": "AZ-06",
       "delta": 100000.0,
-      "V_uni": 0.0036165471731806065,
-      "PSV": 0.003466853359128663,
-      "erosion": 0.00014969381405194326,
-      "retention_rate": 0.9586086377741636
+      "V_uni": 0.0037184454740497586,
+      "PSV": 0.0035637150051286426,
+      "erosion": 0.00015473046892111597,
+      "retention_rate": 0.9583883991305111
     },
     {
       "district_id": "NJ-03",
       "delta": 100000.0,
-      "V_uni": 0.003182236630436819,
-      "PSV": 0.00417563112327457,
-      "erosion": -0.0009933944928377514,
-      "retention_rate": 1.3121686436942908
+      "V_uni": 0.0034338870833039437,
+      "PSV": 0.0029998508050539385,
+      "erosion": 0.0004340362782500051,
+      "retention_rate": 0.8736020527988959
     },
     {
-      "district_id": "CT-05",
+      "district_id": "NY-17",
       "delta": 100000.0,
-      "V_uni": -6.241649032290297e-06,
-      "PSV": -1.4585774408715224e-05,
-      "erosion": 8.344125376424927e-06,
+      "V_uni": -3.141569899867136e-05,
+      "PSV": 3.444266582164346e-05,
+      "erosion": -6.585836482031482e-05,
       "retention_rate": NaN
     }
   ],
@@ -96,59 +75,60 @@
     {
       "district_id": "NY-20",
       "delta": 100000.0,
-      "V_uni": 0.01129726959405275,
-      "PSV": 0.008029718420317522,
-      "erosion": 0.003267551173735228,
-      "retention_rate": 0.7107662921087257
+      "V_uni": 0.0104405304270756,
+      "PSV": 0.0034253942006046145,
+      "erosion": 0.007015136226470986,
+      "retention_rate": 0.32808622363874185
     },
     {
       "district_id": "FL-15",
       "delta": 100000.0,
-      "V_uni": 0.005500722093785271,
-      "PSV": 0.005528891904077682,
-      "erosion": -2.8169810292411057e-05,
-      "retention_rate": 1.0051211113399525
+      "V_uni": 0.005532536153737055,
+      "PSV": 0.0027919614098266266,
+      "erosion": 0.002740574743910429,
+      "retention_rate": 0.5046440424868699
+    },
+    {
+      "district_id": "AZ-02",
+      "delta": 100000.0,
+      "V_uni": 0.004777743798769052,
+      "PSV": 0.0027727943025865898,
+      "erosion": 0.002004949496182462,
+      "retention_rate": 0.5803564233186758
+    },
+    {
+      "district_id": "PA-12",
+      "delta": 100000.0,
+      "V_uni": 0.004774331561463896,
+      "PSV": 0.005027687850883922,
+      "erosion": -0.00025335628942002586,
+      "retention_rate": 1.0530663373832256
     },
     {
       "district_id": "MI-04",
       "delta": 100000.0,
-      "V_uni": -0.0002998587693241461,
-      "PSV": -0.00029143565654976555,
-      "erosion": -8.42311277438057e-06,
+      "V_uni": -6.834312836190293e-05,
+      "PSV": 0.0001590617615647716,
+      "erosion": -0.00022740488992667451,
       "retention_rate": NaN
     },
     {
-      "district_id": "FL-26",
+      "district_id": "NY-17",
       "delta": 100000.0,
-      "V_uni": 0.0029293622665136354,
-      "PSV": 0.004676427452665166,
-      "erosion": -0.0017470651861515307,
-      "retention_rate": 1.5963977914656458
-    },
-    {
-      "district_id": "CA-47",
-      "delta": 100000.0,
-      "V_uni": 0.00029256647928832535,
-      "PSV": 0.00028309367351653236,
-      "erosion": 9.472805771792991e-06,
+      "V_uni": -4.6726565415156074e-05,
+      "PSV": 3.4311832479261284e-05,
+      "erosion": -8.103839789441736e-05,
       "retention_rate": NaN
-    },
-    {
-      "district_id": "PA-01",
-      "delta": 100000.0,
-      "V_uni": 0.003837404743762818,
-      "PSV": 0.0034972144803759875,
-      "erosion": 0.00034019026338683034,
-      "retention_rate": 0.9113488708899514
     }
   ],
-  "quadrant_counts": {
-    "possible over-capitalization": 237,
-    "Democratic opportunity": 127,
-    "under-contested / escalation pressure": 54,
-    "Republican opportunity": 15
+  "n_funded_d": 64,
+  "n_funded_r": 78,
+  "nash_surrogate": {
+    "converged": false,
+    "n_iterations": 2000,
+    "e_seats_d": 216.47988686116298,
+    "e_seats_r": 216.52011313883702,
+    "l1_distance_observed_to_nash": 354983482.015009
   },
-  "psv_baseline": "isolated",
-  "psv_baseline_e_seats_d": 211.29927973691676,
-  "psv_baseline_e_seats_r": 215.8035297324307
+  "elapsed_sec": 368.6142330169678
 }

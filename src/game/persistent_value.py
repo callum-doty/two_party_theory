@@ -17,6 +17,11 @@ cut first).
     Erosion_i  = V_uni_i - PSV_i
     Retention_i = PSV_i / V_uni_i
 
+All four use payoff.p_win_shared, the same fixed-baseline formula BR_D/BR_R
+themselves search (game/best_response.py's module docstring) -- there is no
+separate D-anchored evaluation left to diverge from the opponent's own
+best-response objective.
+
 A high V_uni with PSV near zero means the apparent opportunity is competed
 away; a high PSV is a genuine candidate for persistent strategic mispricing
 (spec Section 14). PSV_R is the mirror-image statistic for a Republican
@@ -32,20 +37,19 @@ same cost tradeoff.
 BASELINE CHOICE, found empirically and worth flagging before trusting a run:
 spec Section 14 writes PSV_i literally as UD(D', BR_R(D')) - UD(D, R) --
 i.e. against the OBSERVED R baseline, same as V_uni. On the real 2024
-universe this makes PSV nearly race-INVARIANT: exploitability.py's own
-RegretR there is +4.6 seats (observed R is far from R's own optimum,
-independent of any single race's delta), so BR_R(D') for almost any D' near
-D_obs recovers most of that same +4.6 R-side swing, and every race's
-literal-formula PSV comes back dominated by that constant -RegretR term
-rather than by the race-specific signal Section 14's own worked example
-(+0.12 -> +0.01) is illustrating. Both functions below default to the
-literal spec formula (baseline_e_seats=None -> observed U_D(D,R)), but
-accept an explicit baseline_e_seats so callers can instead pass
-U_D(D, BR_R(D_obs)) (R ALREADY at its own best response, computed ONCE and
-reused across every race in a candidate set) -- that isolates each race's
-own erosion from the shared, race-independent RegretR term, and is the
-more informative comparison whenever observed spending is itself far from
-either side's unilateral optimum.
+universe this makes PSV nearly race-INVARIANT whenever RegretR itself is
+large: BR_R(D') for almost any D' near D_obs recovers most of that same
+RegretR-sized R-side swing, and every race's literal-formula PSV comes back
+dominated by that constant -RegretR term rather than by the race-specific
+signal Section 14's own worked example (+0.12 -> +0.01) is illustrating.
+Both functions below default to the literal spec formula
+(baseline_e_seats=None -> observed U_D(D,R)), but accept an explicit
+baseline_e_seats so callers can instead pass U_D(D, BR_R(D_obs)) (R ALREADY
+at its own best response, computed ONCE and reused across every race in a
+candidate set) -- that isolates each race's own erosion from the shared,
+race-independent RegretR term, and is the more informative comparison
+whenever observed spending is itself far from either side's unilateral
+optimum.
 
 RETENTION-RATIO INSTABILITY, found 2026-08-11 investigating a retention
 >100% anomaly in the 2022/2024 historical backtest (docs/methodology.md
@@ -117,28 +121,28 @@ def persistent_strategic_value_d(races, coef, sigma_model, cand_r_total, budget_
     None (default) = literal spec formula, U_D(D, R_observed). Pass
     U_D(D, BR_R(D_observed)) instead to isolate this race's own erosion from
     the shared RegretR term -- see module docstring. Compute that baseline
-    ONCE (br.br_r + payoff.p_win against total_d=d0) and reuse it across every
-    race in a candidate set rather than recomputing it per call."""
-    n = len(races)
+    ONCE (br.br_r + payoff.p_win_shared against party_d=party_d_obs) and
+    reuse it across every race in a candidate set rather than recomputing it
+    per call."""
     floors_d = np.array([r.cand_d_total for r in races])
     r0 = np.array([r.r_total for r in races])
     d0 = np.array([r.d_total for r in races])
     party_d_obs = np.maximum(d0 - floors_d, 0.0)
+    party_r_obs = np.maximum(r0 - cand_r_total, 0.0)
     cap_d = cap_fraction_d * budget_d
 
-    baseline_obs = payoff.expected_seats_d(payoff.p_win(party_d_obs, races, coef, sigma_model, r0))
+    arrays = payoff.baseline_arrays(races, coef, sigma_model, cand_r_total)
+    baseline_obs = float(payoff.p_win_shared(party_d_obs, party_r_obs, arrays).sum())
     baseline = baseline_obs if baseline_e_seats is None else baseline_e_seats
 
-    arrays_obs = payoff.race_arrays_at(races, coef, sigma_model, total_r=r0)
-    msg_d_obs = gradients.msg_d(party_d_obs, arrays_obs)
+    msg_d_obs = gradients.msg_d(party_d_obs, party_r_obs, arrays)
     party_d_dev = _finance_delta(party_d_obs, msg_d_obs, race_idx, delta, cap_d)
 
-    v_uni = payoff.expected_seats_d(payoff.p_win(party_d_dev, races, coef, sigma_model, r0)) - baseline_obs
+    v_uni = float(payoff.p_win_shared(party_d_dev, party_r_obs, arrays).sum()) - baseline_obs
 
-    res_r_prime = br.br_r(races, coef, sigma_model, total_d=floors_d + party_d_dev,
-                           cand_r_total=cand_r_total, budget_r=budget_r, cap_fraction_r=cap_fraction_r)
-    total_r_prime = cand_r_total + res_r_prime.party
-    psv = payoff.expected_seats_d(payoff.p_win(party_d_dev, races, coef, sigma_model, total_r_prime)) - baseline
+    res_r_prime = br.br_r(races, coef, sigma_model, party_d=party_d_dev, cand_r_total=cand_r_total,
+                           budget_r=budget_r, cap_fraction_r=cap_fraction_r)
+    psv = float(payoff.p_win_shared(party_d_dev, res_r_prime.party, arrays).sum()) - baseline
 
     erosion = v_uni - psv
     retention = float(psv / v_uni) if abs(v_uni) > RETENTION_MATERIALITY_THRESHOLD else float("nan")
@@ -164,25 +168,25 @@ def persistent_strategic_value_r(races, coef, sigma_model, cand_r_total, budget_
     floors_d = np.array([r.cand_d_total for r in races])
     r0 = np.array([r.r_total for r in races])
     d0 = np.array([r.d_total for r in races])
+    party_d_obs = np.maximum(d0 - floors_d, 0.0)
     party_r_obs = np.maximum(r0 - cand_r_total, 0.0)
     cap_r = cap_fraction_r * budget_r
 
-    baseline_d_obs = payoff.expected_seats_d(payoff.p_win(np.maximum(d0 - floors_d, 0.0), races, coef, sigma_model, r0))
-    baseline_r_obs = payoff.expected_seats_r(n, baseline_d_obs)
+    arrays = payoff.baseline_arrays(races, coef, sigma_model, cand_r_total)
+    baseline_d_obs = float(payoff.p_win_shared(party_d_obs, party_r_obs, arrays).sum())
+    baseline_r_obs = float(n) - baseline_d_obs
     baseline_r = baseline_r_obs if baseline_e_seats_r is None else baseline_e_seats_r
 
-    arrays_obs = payoff.race_arrays_at(races, coef, sigma_model, total_r=r0)
-    msg_r_obs = gradients.msg_r(np.maximum(d0 - floors_d, 0.0), r0, arrays_obs)
+    msg_r_obs = gradients.msg_r(party_d_obs, party_r_obs, arrays)
     party_r_dev = _finance_delta(party_r_obs, msg_r_obs, race_idx, delta, cap_r)
-    total_r_dev = cand_r_total + party_r_dev
 
-    e_d_uni = payoff.expected_seats_d(payoff.p_win(np.maximum(d0 - floors_d, 0.0), races, coef, sigma_model, total_r_dev))
-    v_uni = payoff.expected_seats_r(n, e_d_uni) - baseline_r_obs
+    e_d_uni = float(payoff.p_win_shared(party_d_obs, party_r_dev, arrays).sum())
+    v_uni = (float(n) - e_d_uni) - baseline_r_obs
 
-    res_d_prime = br.br_d(races, coef, sigma_model, total_r=total_r_dev,
+    res_d_prime = br.br_d(races, coef, sigma_model, party_r=party_r_dev, cand_r_total=cand_r_total,
                            budget_d=budget_d, cap_fraction_d=cap_fraction_d)
-    e_d_star = payoff.expected_seats_d(payoff.p_win(res_d_prime.party, races, coef, sigma_model, total_r_dev))
-    psv = payoff.expected_seats_r(n, e_d_star) - baseline_r
+    e_d_star = float(payoff.p_win_shared(res_d_prime.party, party_r_dev, arrays).sum())
+    psv = (float(n) - e_d_star) - baseline_r
 
     erosion = v_uni - psv
     retention = float(psv / v_uni) if abs(v_uni) > RETENTION_MATERIALITY_THRESHOLD else float("nan")

@@ -57,6 +57,8 @@ def main() -> None:
     d_grid = np.linspace(0.0, d_max, args.n_grid)
     r_grid = np.linspace(0.0, d_max, args.n_grid)
 
+    arrays = payoff.baseline_arrays(races, state["coef"], state["sigma_model"], cand_r_total)
+
     logger.info(f"Building {args.n_grid}x{args.n_grid} p_win grid for {args.district} "
                 f"({args.cycle}), D/R in [0, ${d_max:,.0f}]…")
     p_grid = np.zeros((args.n_grid, args.n_grid))
@@ -64,17 +66,16 @@ def main() -> None:
         party_d_vec = party_d_obs * np.ones(len(races))
         party_d_vec[i] = party_d
         for b, party_r in enumerate(r_grid):
-            total_r_vec = (cand_r_total + party_r_obs).copy()
-            total_r_vec[i] = cand_r_total[i] + party_r
-            p = payoff.p_win(party_d_vec, races, state["coef"], state["sigma_model"], total_r_vec)
+            party_r_vec = party_r_obs * np.ones(len(races))
+            party_r_vec[i] = party_r
+            p = payoff.p_win_shared(party_d_vec, party_r_vec, arrays)
             p_grid[a, b] = float(p[i])
 
-    total_r_at_obs = r0.copy()
-    arrays_obs = payoff.race_arrays_at(races, state["coef"], state["sigma_model"], total_r=total_r_at_obs)
     party_d_full = np.maximum(d0 - floors_d, 0.0)
-    msg_d_obs = float(gradients.msg_d(party_d_full, arrays_obs)[i])
-    msg_r_obs = float(gradients.msg_r(party_d_full, total_r_at_obs, arrays_obs)[i])
-    p_win_obs = float(payoff.p_win(party_d_full, races, state["coef"], state["sigma_model"], total_r_at_obs)[i])
+    party_r_full = np.maximum(r0 - cand_r_total, 0.0)
+    msg_d_obs = float(gradients.msg_d(party_d_full, party_r_full, arrays)[i])
+    msg_r_obs = float(gradients.msg_r(party_d_full, party_r_full, arrays)[i])
+    p_win_obs = float(payoff.p_win_shared(party_d_full, party_r_full, arrays)[i])
 
     out = {
         "cycle": args.cycle,

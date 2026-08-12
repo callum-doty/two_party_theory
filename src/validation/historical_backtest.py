@@ -70,12 +70,13 @@ def run_cycle(cycle: int, races, coef, sigma_model, cand_r_total: np.ndarray,
     # reused here rather than re-solving, so this costs zero extra
     # best-response solves.
     res_d_star, res_r_star = surplus["res_d"], surplus["res_r"]
-    total_r_star = cand_r_total + res_r_star.party
     party_d_obs = np.maximum(d0 - floors_d, 0.0)
-    baseline_d = payoff.expected_seats_d(payoff.p_win(party_d_obs, races, coef, sigma_model, total_r_star))
+    party_r_obs = np.maximum(r0 - cand_r_total, 0.0)
+    arrays = payoff.baseline_arrays(races, coef, sigma_model, cand_r_total)
+    baseline_d = float(payoff.p_win_shared(party_d_obs, res_r_star.party, arrays).sum())
 
-    e_d_at_d_star = payoff.expected_seats_d(payoff.p_win(res_d_star.party, races, coef, sigma_model, r0))
-    baseline_r = payoff.expected_seats_r(n, e_d_at_d_star)
+    e_d_at_d_star = float(payoff.p_win_shared(res_d_star.party, party_r_obs, arrays).sum())
+    baseline_r = float(n) - e_d_at_d_star
 
     # Candidate pool restricted to races with REAL current party spend before
     # ranking by |Z| -- found necessary 2026-08-11 investigating a retention

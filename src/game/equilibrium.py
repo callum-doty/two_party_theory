@@ -2,53 +2,38 @@
 The strategic equilibrium (D*, R*) with D* = BR_D(R*), R* = BR_R(D*)
 (project_spec.md Sections 11-12).
 
-solve_nash() is a thin, renamed wrapper around the already-validated
-backtest.optimizer.nash.find_nash_equilibrium_multi_start -- multi-start
-agreement checking and non-convergence reporting come for free from that
-solver (spec Section 12's "multiple starting allocations" and "multiple-
-equilibrium detection" diagnostics).
+Both BR_D and BR_R now search AND score against the SAME shared, symmetric
+payoff (payoff.p_win_shared, via game/best_response.py) -- see that
+module's docstring for why this package no longer delegates to
+backtest.optimizer.nash's fixed-point solver: that solver's D branch used
+the old D-anchored formula and its R branch used a separately-derived
+mirrored ceiling, and handing R the literal D-anchored formula as an
+"exact" fix (rather than a genuinely shared one) let R exploit an
+unregularized downward extrapolation. solve_nash/iterate_best_response below
+implement best-response dynamics directly against this package's own
+br_d/br_r, with no remaining dependency on nash.py's iteration logic.
 
-iterate_best_response() adds the diagnostics that solver does NOT vary:
-move order (D-first vs. R-first) and update timing (sequential Gauss-Seidel
-vs. simultaneous Jacobi), per spec Section 12's explicit requirement to
-check both rather than assume Gauss-Seidel D-first is the only reasonable
-dynamic. "D_first"+"sequential" delegates to the validated solver directly;
-the other three combinations are implemented here from the same br_d/br_r
-building blocks, always scored via the SAME D-anchored formula
-(payoff.p_win) for both sides' e_seats, replicating the like-for-like-
-scoring fix documented in scripts/game_theory/race_level_exploitability.py
-(mixing D-formula and R's-mirrored-formula scores produced a logically
-impossible negative regret there).
+iterate_best_response() provides the diagnostics project_spec.md Section 12
+requires: move order (D-first vs. R-first) and update timing (sequential
+Gauss-Seidel vs. simultaneous Jacobi). solve_nash() is the primary
+equilibrium object -- D-first, sequential, from 3 starting points (observed,
+uniform, zero), reporting whether they agree.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from backtest.optimizer import nash as _nash_mod
+from backtest.optimizer.nash import NashResult
 
 from . import best_response as br
 from . import payoff
 
 
-def solve_nash(races, coef, sigma_model, cand_r_total, budget_d, budget_r,
-                cap_fraction_d: float = 0.15, cap_fraction_r: float = 0.15,
-                damping_theta: float = 1.0, max_rounds: int = 100,
-                tol_dollars: float = 10_000.0):
-    """(D*, R*) via multi-start Gauss-Seidel best-response dynamics, D-first,
-    sequential -- the primary equilibrium object (spec Section 11)."""
-    return _nash_mod.find_nash_equilibrium_multi_start(
-        races, coef, sigma_model, cand_r_total, budget_d, budget_r,
-        cap_fraction_d=cap_fraction_d, cap_fraction_r=cap_fraction_r,
-        damping_theta=damping_theta, max_rounds=max_rounds, tol_dollars=tol_dollars,
-    )
-
-
-def _score(races, coef, sigma_model, party_d, floors_d, total_r):
-    n = len(races)
-    p = payoff.p_win(party_d, races, coef, sigma_model, total_r)
-    e_d = payoff.expected_seats_d(p)
-    return e_d, payoff.expected_seats_r(n, e_d)
+def _score(arrays: dict, party_d: np.ndarray, party_r: np.ndarray) -> tuple[float, float]:
+    p = payoff.p_win_shared(party_d, party_r, arrays)
+    e_d = float(p.sum())
+    return e_d, float(len(party_d)) - e_d
 
 
 def iterate_best_response(
@@ -71,32 +56,18 @@ def iterate_best_response(
     Returns a dict shaped like NashResult's fields, plus `cycle_detected`:
     True if the last 4 rounds' combined allocation delta failed to shrink
     monotonically (a simple, conservative tell for non-convergent orbits,
-    not a proof of periodicity).
-    """
+    not a proof of periodicity)."""
     if order not in ("D_first", "R_first"):
         raise ValueError(f"order must be 'D_first' or 'R_first', got {order!r}")
     if mode not in ("sequential", "simultaneous"):
         raise ValueError(f"mode must be 'sequential' or 'simultaneous', got {mode!r}")
-
-    if order == "D_first" and mode == "sequential":
-        res = _nash_mod.solve_best_response_dynamics(
-            races, coef, sigma_model, cand_r_total, budget_d, budget_r,
-            cap_fraction_d, cap_fraction_r, init_party_d=init_party_d, init_party_r=init_party_r,
-            damping_theta=damping_theta, max_rounds=max_rounds, tol_dollars=tol_dollars,
-        )
-        deltas = [h["max_delta_d"] + h["max_delta_r"] for h in res.history]
-        return {
-            "party_d": res.party_d, "party_r": res.party_r,
-            "e_seats_d": res.e_seats_d, "e_seats_r": res.e_seats_r,
-            "converged": res.converged, "n_iterations": res.n_iterations,
-            "history": res.history, "cycle_detected": _detect_cycle(deltas),
-        }
 
     n = len(races)
     floors_d = np.array([r.cand_d_total for r in races])
     r0 = np.array([r.r_total for r in races])
     d0 = np.array([r.d_total for r in races])
     cand_r_total = np.asarray(cand_r_total, dtype=float)
+    arrays = payoff.baseline_arrays(races, coef, sigma_model, cand_r_total)
 
     party_d = init_party_d.copy() if init_party_d is not None else np.maximum(d0 - floors_d, 0.0)
     party_r = init_party_r.copy() if init_party_r is not None else np.maximum(r0 - cand_r_total, 0.0)
@@ -105,24 +76,25 @@ def iterate_best_response(
     converged = False
     it = 0
     for it in range(max_rounds):
-        if mode == "sequential":  # R_first, sequential
-            r_total_current = cand_r_total + party_r
-            res_r = br.br_r(races, coef, sigma_model, total_d=floors_d + party_d,
-                             cand_r_total=cand_r_total, budget_r=budget_r,
-                             cap_fraction_r=cap_fraction_r, x0=party_r)
+        if mode == "sequential" and order == "D_first":
+            res_d = br.br_d(races, coef, sigma_model, party_r=party_r, cand_r_total=cand_r_total,
+                             budget_d=budget_d, cap_fraction_d=cap_fraction_d, x0=party_d)
+            party_d_new = damping_theta * res_d.party + (1.0 - damping_theta) * party_d
+            res_r = br.br_r(races, coef, sigma_model, party_d=party_d_new, cand_r_total=cand_r_total,
+                             budget_r=budget_r, cap_fraction_r=cap_fraction_r, x0=party_r)
             party_r_new = damping_theta * res_r.party + (1.0 - damping_theta) * party_r
-            r_total_after_r = cand_r_total + party_r_new
-            res_d = br.br_d(races, coef, sigma_model, total_r=r_total_after_r,
+        elif mode == "sequential":  # R_first
+            res_r = br.br_r(races, coef, sigma_model, party_d=party_d, cand_r_total=cand_r_total,
+                             budget_r=budget_r, cap_fraction_r=cap_fraction_r, x0=party_r)
+            party_r_new = damping_theta * res_r.party + (1.0 - damping_theta) * party_r
+            res_d = br.br_d(races, coef, sigma_model, party_r=party_r_new, cand_r_total=cand_r_total,
                              budget_d=budget_d, cap_fraction_d=cap_fraction_d, x0=party_d)
             party_d_new = damping_theta * res_d.party + (1.0 - damping_theta) * party_d
         else:  # simultaneous, either order (order only matters for tie-breaking display)
-            r_total_prev = cand_r_total + party_r
-            d_total_prev = floors_d + party_d
-            res_d = br.br_d(races, coef, sigma_model, total_r=r_total_prev,
+            res_d = br.br_d(races, coef, sigma_model, party_r=party_r, cand_r_total=cand_r_total,
                              budget_d=budget_d, cap_fraction_d=cap_fraction_d, x0=party_d)
-            res_r = br.br_r(races, coef, sigma_model, total_d=d_total_prev,
-                             cand_r_total=cand_r_total, budget_r=budget_r,
-                             cap_fraction_r=cap_fraction_r, x0=party_r)
+            res_r = br.br_r(races, coef, sigma_model, party_d=party_d, cand_r_total=cand_r_total,
+                             budget_r=budget_r, cap_fraction_r=cap_fraction_r, x0=party_r)
             party_d_new = damping_theta * res_d.party + (1.0 - damping_theta) * party_d
             party_r_new = damping_theta * res_r.party + (1.0 - damping_theta) * party_r
 
@@ -130,14 +102,14 @@ def iterate_best_response(
         max_delta_r = float(np.max(np.abs(party_r_new - party_r))) if n else 0.0
         party_d, party_r = party_d_new, party_r_new
 
-        e_d, e_r = _score(races, coef, sigma_model, party_d, floors_d, cand_r_total + party_r)
+        e_d, e_r = _score(arrays, party_d, party_r)
         history.append({"round": it, "max_delta_d": max_delta_d, "max_delta_r": max_delta_r,
                          "e_seats_d": e_d, "e_seats_r": e_r})
         if max_delta_d < tol_dollars and max_delta_r < tol_dollars:
             converged = True
             break
 
-    e_seats_d, e_seats_r = _score(races, coef, sigma_model, party_d, floors_d, cand_r_total + party_r)
+    e_seats_d, e_seats_r = _score(arrays, party_d, party_r)
     deltas = [h["max_delta_d"] + h["max_delta_r"] for h in history]
     return {
         "party_d": party_d, "party_r": party_r,
@@ -145,6 +117,65 @@ def iterate_best_response(
         "converged": converged, "n_iterations": it + 1,
         "history": history, "cycle_detected": _detect_cycle(deltas),
     }
+
+
+def solve_nash(races, coef, sigma_model, cand_r_total, budget_d, budget_r,
+                cap_fraction_d: float = 0.15, cap_fraction_r: float = 0.15,
+                damping_theta: float = 1.0, max_rounds: int = 100,
+                tol_dollars: float = 10_000.0) -> NashResult:
+    """(D*, R*) via multi-start Gauss-Seidel best-response dynamics, D-first,
+    sequential -- the primary equilibrium object (spec Section 11). Runs
+    from 3 starting points (observed baseline, uniform-across-races,
+    zero-party-spend) and reports whether they agree, within
+    tol_dollars*10 per race (spec Section 12's multi-start requirement).
+    Existence/uniqueness are NOT guaranteed for this non-convex game -- if
+    the starts disagree, that is reported in the returned NashResult's
+    multi_start_agreement field, not silently averaged away or discarded."""
+    n = len(races)
+    starts = {
+        "observed": (None, None),
+        "uniform": (np.full(n, budget_d / max(n, 1)), np.full(n, budget_r / max(n, 1))),
+        "zero": (np.zeros(n), np.zeros(n)),
+    }
+    per_start: dict[str, dict] = {}
+    for name, (init_d, init_r) in starts.items():
+        per_start[name] = iterate_best_response(
+            races, coef, sigma_model, cand_r_total, budget_d, budget_r,
+            cap_fraction_d, cap_fraction_r, order="D_first", mode="sequential",
+            init_party_d=init_d, init_party_r=init_r,
+            damping_theta=damping_theta, max_rounds=max_rounds, tol_dollars=tol_dollars,
+        )
+
+    names = list(starts.keys())
+    max_pairwise_d = max(
+        (float(np.max(np.abs(per_start[a]["party_d"] - per_start[b]["party_d"])))
+         for i, a in enumerate(names) for b in names[i + 1:]),
+        default=0.0,
+    )
+    max_pairwise_r = max(
+        (float(np.max(np.abs(per_start[a]["party_r"] - per_start[b]["party_r"])))
+         for i, a in enumerate(names) for b in names[i + 1:]),
+        default=0.0,
+    )
+    converged_all = all(r["converged"] for r in per_start.values())
+    agree = converged_all and max_pairwise_d < tol_dollars * 10 and max_pairwise_r < tol_dollars * 10
+
+    base = per_start["observed"]
+    multi_start_agreement = {
+        "converged_all": converged_all,
+        "agree_within_tolerance": agree,
+        "max_pairwise_party_d_diff": max_pairwise_d,
+        "max_pairwise_party_r_diff": max_pairwise_r,
+        "per_start_converged": {k: v["converged"] for k, v in per_start.items()},
+        "per_start_e_seats_d": {k: v["e_seats_d"] for k, v in per_start.items()},
+        "per_start_n_iterations": {k: v["n_iterations"] for k, v in per_start.items()},
+    }
+    return NashResult(
+        party_d=base["party_d"], party_r=base["party_r"],
+        e_seats_d=base["e_seats_d"], e_seats_r=base["e_seats_r"],
+        converged=base["converged"], n_iterations=base["n_iterations"],
+        history=base["history"], multi_start_agreement=multi_start_agreement,
+    )
 
 
 def _detect_cycle(deltas: list[float], window: int = 4) -> bool:

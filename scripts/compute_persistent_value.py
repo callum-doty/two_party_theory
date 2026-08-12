@@ -78,19 +78,18 @@ def main() -> None:
     baseline_d, baseline_r = None, None
     if args.baseline == "isolated":
         logger.info("Computing shared isolated baselines: U_D(D, BR_R(D)) and U_R(BR_D(D), R)…")
-        res_r_star = br.br_r(races, coef, sigma_model, total_d=d0, cand_r_total=cand_r_total,
-                              budget_r=budget_r, cap_fraction_r=args.cap_fraction_r)
-        total_r_star = cand_r_total + res_r_star.party
+        arrays = payoff.baseline_arrays(races, coef, sigma_model, cand_r_total)
         party_d_obs = np.maximum(d0 - np.array([r.cand_d_total for r in races]), 0.0)
-        baseline_d = payoff.expected_seats_d(
-            payoff.p_win(party_d_obs, races, coef, sigma_model, total_r_star)
-        )
-        res_d_star = br.br_d(races, coef, sigma_model, total_r=r0, budget_d=budget_d,
-                              cap_fraction_d=args.cap_fraction_d)
-        e_d_at_d_star = payoff.expected_seats_d(
-            payoff.p_win(res_d_star.party, races, coef, sigma_model, r0)
-        )
-        baseline_r = payoff.expected_seats_r(state["n_races"], e_d_at_d_star)
+        party_r_obs = np.maximum(r0 - cand_r_total, 0.0)
+
+        res_r_star = br.br_r(races, coef, sigma_model, party_d=party_d_obs, cand_r_total=cand_r_total,
+                              budget_r=budget_r, cap_fraction_r=args.cap_fraction_r)
+        baseline_d = float(payoff.p_win_shared(party_d_obs, res_r_star.party, arrays).sum())
+
+        res_d_star = br.br_d(races, coef, sigma_model, party_r=party_r_obs, cand_r_total=cand_r_total,
+                              budget_d=budget_d, cap_fraction_d=args.cap_fraction_d)
+        e_d_at_d_star = float(payoff.p_win_shared(res_d_star.party, party_r_obs, arrays).sum())
+        baseline_r = float(state["n_races"]) - e_d_at_d_star
         logger.info(f"baseline U_D = {baseline_d:.3f} (observed {surplus['p_win_obs'].sum():.3f}), "
                     f"baseline U_R = {baseline_r:.3f}")
 

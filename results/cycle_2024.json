@@ -3,153 +3,132 @@
   "n_races": 433,
   "budget_d": 102127601.82,
   "budget_r": 47188303.919999994,
-  "cap_fraction_d": 0.15,
-  "cap_fraction_r": 0.15,
   "exploitability": {
-    "e_seats_d_obs": 217.04451044688528,
-    "e_seats_r_obs": 215.95548955311472,
-    "regret_D": 2.356972408440356,
-    "regret_R": 3.233468320281048,
-    "exploitability": 5.590440728721404,
-    "pct_of_one_seat": 559.0440728721404,
-    "pct_of_competitive_seats": 2.575711644220316
+    "e_seats_d_obs": 217.16584806837955,
+    "e_seats_r_obs": 215.83415193162045,
+    "regret_D": 2.8408893025599866,
+    "regret_R": 2.2974084398936725,
+    "exploitability": 5.138297742453659,
+    "pct_of_one_seat": 513.8297742453659,
+    "pct_of_competitive_seats": 2.3660708109296036
   },
-  "nash": {
-    "converged": true,
-    "n_iterations": 13,
-    "e_seats_d": 217.2044173943672,
-    "e_seats_r": 215.7955826056328,
-    "multi_start_agreement": {
-      "converged_all": true,
-      "agree_within_tolerance": true,
-      "max_pairwise_party_d_diff": 4513.121319239028,
-      "max_pairwise_party_r_diff": 1055.2675037836889,
-      "per_start_converged": {
-        "observed": true,
-        "uniform": true,
-        "zero": true
-      },
-      "per_start_e_seats_d": {
-        "observed": 217.2044173943672,
-        "uniform": 217.2044784741099,
-        "zero": 217.2044563696803
-      },
-      "per_start_n_iterations": {
-        "observed": 13,
-        "uniform": 12,
-        "zero": 13
-      }
-    }
+  "quadrant_counts": {
+    "possible over-capitalization": 186,
+    "Democratic opportunity": 125,
+    "under-contested / escalation pressure": 52,
+    "Republican opportunity": 70
   },
-  "l1_distance_observed_to_nash": 292632939.1178224,
+  "psv_baseline": "isolated",
+  "psv_baseline_e_seats_d": 214.86843962848587,
+  "psv_baseline_e_seats_r": 212.99326262906047,
   "persistent_value_D": [
     {
       "district_id": "NV-01",
       "delta": 100000.0,
-      "V_uni": 0.004215029346426036,
-      "PSV": 0.008828742304871184,
-      "erosion": -0.004613712958445149,
-      "retention_rate": 2.09458620077157
+      "V_uni": 0.0047257552897406185,
+      "PSV": 0.002746989988651194,
+      "erosion": 0.0019787653010894246,
+      "retention_rate": 0.5812806250494548
     },
     {
       "district_id": "WI-01",
       "delta": 100000.0,
-      "V_uni": 0.004146632560377839,
-      "PSV": 0.004175604547015155,
-      "erosion": -2.897198663731615e-05,
-      "retention_rate": 1.0069868709646836
-    },
-    {
-      "district_id": "OR-04",
-      "delta": 100000.0,
-      "V_uni": 0.0026331943905404387,
-      "PSV": 0.0027573549698729494,
-      "erosion": -0.00012416057933251068,
-      "retention_rate": 1.047152074977278
-    },
-    {
-      "district_id": "TX-34",
-      "delta": 100000.0,
-      "V_uni": 0.002503378167432402,
-      "PSV": 0.0019013279434432206,
-      "erosion": 0.0006020502239891812,
-      "retention_rate": 0.7595048835123955
-    },
-    {
-      "district_id": "NH-01",
-      "delta": 100000.0,
-      "V_uni": 0.001965674808928952,
-      "PSV": 0.003809255765048647,
-      "erosion": -0.0018435809561196947,
-      "retention_rate": 1.9378870542295938
+      "V_uni": 0.004314538645587618,
+      "PSV": 0.00428461870004071,
+      "erosion": 2.991994554690791e-05,
+      "retention_rate": 0.9930653198395832
     },
     {
       "district_id": "CT-05",
       "delta": 100000.0,
-      "V_uni": 0.0017549564084617941,
-      "PSV": 0.002108531966399596,
-      "erosion": -0.00035357555793780193,
-      "retention_rate": 1.201472558653299
+      "V_uni": 0.0022943186661450454,
+      "PSV": 0.0025637013020514132,
+      "erosion": -0.0002693826359063678,
+      "retention_rate": 1.1174129121125922
+    },
+    {
+      "district_id": "TX-34",
+      "delta": 100000.0,
+      "V_uni": 0.0022952154169502137,
+      "PSV": 0.0021731851578579153,
+      "erosion": 0.00012203025909229837,
+      "retention_rate": 0.9468327642838653
+    },
+    {
+      "district_id": "NH-01",
+      "delta": 100000.0,
+      "V_uni": 0.002144588025402072,
+      "PSV": 0.0015402130690631566,
+      "erosion": 0.0006043749563389156,
+      "retention_rate": 0.7181859876208131
+    },
+    {
+      "district_id": "WA-03",
+      "delta": 100000.0,
+      "V_uni": -1.5161267640451115e-05,
+      "PSV": 3.0106030635579373e-05,
+      "erosion": -4.526729827603049e-05,
+      "retention_rate": NaN
     }
   ],
   "persistent_value_R": [
     {
+      "district_id": "WA-03",
+      "delta": 100000.0,
+      "V_uni": -0.00018981917423843697,
+      "PSV": -0.0003266394824379404,
+      "erosion": 0.00013682030819950342,
+      "retention_rate": NaN
+    },
+    {
+      "district_id": "CA-09",
+      "delta": 100000.0,
+      "V_uni": 8.655574470139982e-05,
+      "PSV": 0.00022829078608310738,
+      "erosion": -0.00014173504138170756,
+      "retention_rate": NaN
+    },
+    {
       "district_id": "CA-27",
       "delta": 100000.0,
-      "V_uni": -0.00021203439874284413,
-      "PSV": -0.0003929352539273623,
-      "erosion": 0.00018090085518451815,
+      "V_uni": 0.0002889763546249924,
+      "PSV": 0.000432161257521102,
+      "erosion": -0.00014318490289610963,
       "retention_rate": NaN
     },
     {
       "district_id": "NY-19",
       "delta": 100000.0,
-      "V_uni": -0.00018612006240914525,
-      "PSV": -0.00030820066473324914,
-      "erosion": 0.0001220806023241039,
+      "V_uni": 0.00031420961332173647,
+      "PSV": 0.000517147875370938,
+      "erosion": -0.0002029382620492015,
       "retention_rate": NaN
     },
     {
-      "district_id": "MI-07",
+      "district_id": "CO-08",
       "delta": 100000.0,
-      "V_uni": -0.0001298913308005467,
-      "PSV": -0.0002273605147706803,
-      "erosion": 9.74691839701336e-05,
+      "V_uni": 0.00032423464307385075,
+      "PSV": 0.00028644407061051425,
+      "erosion": 3.77905724633365e-05,
       "retention_rate": NaN
     },
     {
       "district_id": "CA-13",
       "delta": 100000.0,
-      "V_uni": -0.00013741985776505317,
-      "PSV": -0.00014602248407413754,
-      "erosion": 8.602626309084371e-06,
-      "retention_rate": NaN
-    },
-    {
-      "district_id": "VA-07",
-      "delta": 100000.0,
-      "V_uni": -5.959724867921068e-05,
-      "PSV": -0.00023986957762645034,
-      "erosion": 0.00018027232894723966,
-      "retention_rate": NaN
-    },
-    {
-      "district_id": "AZ-01",
-      "delta": 100000.0,
-      "V_uni": -6.66226758880839e-05,
-      "PSV": -0.00012210974963977606,
-      "erosion": 5.548707375169215e-05,
+      "V_uni": 0.000352617536748312,
+      "PSV": 0.0006704740170562218,
+      "erosion": -0.0003178564803079098,
       "retention_rate": NaN
     }
   ],
-  "quadrant_counts": {
-    "possible over-capitalization": 235,
-    "Democratic opportunity": 141,
-    "under-contested / escalation pressure": 41,
-    "Republican opportunity": 15,
-    "locally equilibrated": 1
+  "n_funded_d": 54,
+  "n_funded_r": 39,
+  "nash_surrogate": {
+    "converged": false,
+    "n_iterations": 2000,
+    "e_seats_d": 218.56674827604178,
+    "e_seats_r": 214.43325172395822,
+    "l1_distance_observed_to_nash": 292883615.10471
   },
-  "psv_baseline": "isolated",
-  "psv_baseline_e_seats_d": 213.81104212660424,
-  "psv_baseline_e_seats_r": 213.59851714467436
+  "elapsed_sec": 384.68749475479126
 }

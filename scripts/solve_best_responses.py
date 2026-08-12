@@ -20,6 +20,8 @@ REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
+import numpy as np  # noqa: E402
+
 from build_cycle_state import build_cycle_state  # noqa: E402
 from game import best_response as br  # noqa: E402
 
@@ -36,18 +38,22 @@ def main() -> None:
 
     state = build_cycle_state(args.cycle, args.cap_fraction_d, args.cap_fraction_r)
     races, coef, sigma_model = state["races"], state["coef"], state["sigma_model"]
-    d0 = [r.d_total for r in races]
-    r0 = [r.r_total for r in races]
+    cand_r_total = state["cand_r_total"]
+    floors_d = np.array([r.cand_d_total for r in races])
+    d0 = np.array([r.d_total for r in races])
+    r0 = np.array([r.r_total for r in races])
+    party_d_obs = np.maximum(d0 - floors_d, 0.0)
+    party_r_obs = np.maximum(r0 - cand_r_total, 0.0)
 
     logger.info("Solving BR_D(R_observed)…")
-    res_d = br.br_d(races, coef, sigma_model, total_r=r0, budget_d=state["budget_d"],
-                     cap_fraction_d=args.cap_fraction_d)
+    res_d = br.br_d(races, coef, sigma_model, party_r=party_r_obs, cand_r_total=cand_r_total,
+                     budget_d=state["budget_d"], cap_fraction_d=args.cap_fraction_d)
     logger.info(f"BR_D: E[D seats] = {res_d.e_seats_own:.3f}")
 
     logger.info("Solving BR_R(D_observed)…")
-    res_r = br.br_r(races, coef, sigma_model, total_d=d0, cand_r_total=state["cand_r_total"],
+    res_r = br.br_r(races, coef, sigma_model, party_d=party_d_obs, cand_r_total=cand_r_total,
                      budget_r=state["budget_r"], cap_fraction_r=args.cap_fraction_r)
-    logger.info(f"BR_R: E[R seats] (self-scored via R's own search objective) = {res_r.e_seats_own:.3f}")
+    logger.info(f"BR_R: E[R seats] = {res_r.e_seats_own:.3f}")
 
     out = {
         "cycle": args.cycle,
