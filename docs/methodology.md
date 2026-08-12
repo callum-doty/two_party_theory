@@ -287,6 +287,362 @@ can manufacture a spurious negative regret purely from which local optimum
 SLSQP happens to land in, independent of whether the formula or the search
 is actually correct.
 
+## Direct pure-strategy exploitability minimum: confirms the floor, doesn't explain it (2026-08-12)
+
+The Nash section above establishes that damped Gauss-Seidel best-response
+dynamics cycle rather than converge, settling into a bounded residual-regret
+band (roughly 0.06-0.68 seats per side depending on damping/cycle) instead
+of zero. That is evidence the DYNAMICS don't reach a zero-regret point --
+it is NOT evidence that no such point exists nearby for the dynamics to
+have missed. `scripts/minimize_pure_exploitability.py` asks the sharper
+question directly: searching jointly over (D, R), not just wherever
+alternating best-response happens to land, what is the lowest combined
+regret `E(D,R) = RegretD + RegretR` actually reachable?
+
+Method: (1) a 400-round x 3-start surrogate-driven best-response trajectory
+scan that scores EVERY round's (D,R) pair, not just the final one; (2) 300
+rounds of surrogate-scored local stochastic search (basin hopping) around
+the best point found; (3) exact-SLSQP refinement (warm-started from the
+candidate itself -- a cold zero-start SLSQP check on a point it didn't
+produce can manufacture a spurious negative regret, as the surrogate
+verification note above already found once) of the single best candidate.
+
+| Cycle | Observed E | Best-on-trajectory (surrogate, round found) | After basin-hop | E_min (exact, warm-started) |
+|---|---|---|---|---|
+| 2024 | 5.14 | 0.374 (uniform start, round 3/400) | 0.373 | **0.484** (RegretD=0.449, RegretR=0.035) |
+| 2022 | 5.44 | 0.767 (uniform start, round 5/400) | 0.767 (no improvement) | **0.862** (RegretD=0.730, RegretR=0.132) |
+
+Three findings, read together:
+
+1. **The trajectory's own minimum occurs almost immediately** (round 3-7
+   of 400), not after the dynamics "settle" -- the oscillating band the
+   dynamics spend most of their time in is not obviously better or worse
+   than where they started converging toward it. There is no deep-round
+   improvement being missed by only checking the endpoint.
+2. **300 rounds of local stochastic search barely moves the needle**
+   (2024: 0.374 -> 0.373; 2022: no improvement at all) -- a real, if
+   cheap, local search around the best trajectory point does not find a
+   materially lower-regret pure allocation pair nearby.
+3. **The final exact E_min (0.48 / 0.86) lands within the same range this
+   project's ORIGINAL, much shorter Nash-dynamics runs already reported**
+   (`docs/results_2022_2024.md`: ~0.44 / ~0.76). A much more thorough,
+   independently-designed search landing back in the same band is the
+   right kind of confirmation: it says that band is a property of the
+   payoff surface in this region, not an artifact of how many rounds or
+   which damping schedule the original dynamics used.
+
+This is evidence AGAINST a low-regret pure point existing in the
+neighborhood the dynamics and local search actually cover -- not a proof
+of global non-existence (433x2 dimensions is not exhaustively searchable),
+and not yet a distinction between "no pure equilibrium exists" and "one
+exists somewhere far from this neighborhood." It does shift the practical
+question toward the mixed-strategy hypothesis rather than "try harder to
+converge" -- see the fictitious-play and double-oracle sections below.
+
+Raw output: `results/pure_exploitability_min_{cycle}.json`, allocations at
+`results/pure_exploitability_min_party_{d,r}_{cycle}.npy`.
+
+## Fictitious play: the time-average beats the best pure point found (2026-08-12)
+
+The classic finite-zero-sum-game algorithm (Robinson 1951): each round,
+both sides best-respond to the OTHER side's TIME-AVERAGE allocation so far
+(not its most recent play, which is what the Gauss-Seidel/Jacobi dynamics
+above do), and the realized best responses are folded into a running
+average on each side. It is the pair of AVERAGES, not the last round's
+pure best responses, that fictitious play's convergence guarantee is
+about. That guarantee is a theorem for FINITE matrix games; applied here
+to a continuous allocation space it is an empirical question, not a
+theorem being invoked -- `payoff.p_win_shared`'s tanh saturation is not
+globally linear in the opponent's spending, so best-responding to the
+opponent's average allocation is not exactly the same as best-responding
+to its distribution (`game/double_oracle.py`'s mixture best response,
+below, does solve the exact version of that problem).
+
+`game/equilibrium.py::fictitious_play` implements this (surrogate-scored
+during the run, exact-SLSQP-checked once at the end, same division of
+labor as the E_min search above). 400 rounds, two starts each cycle:
+
+| Cycle | Start | Final round E(avg), surrogate | Last-20-round range | Exact E(avg) at best start |
+|---|---|---|---|---|
+| 2024 | observed | 0.237 | [0.195, 0.265] | -- |
+| 2024 | uniform | 0.194 | [0.194, 0.211] | **0.359** (RegretD=0.106, RegretR=0.254) |
+| 2022 | observed | 0.460 | [0.460, 0.501] | **0.666** (RegretD=0.167, RegretR=0.500) |
+| 2022 | uniform | 0.487 | [0.425, 0.493] | -- |
+
+The result worth noting: fictitious play's exact-checked average-pair
+regret (0.359 for 2024) is LOWER than both the best pure point the direct
+E_min search found (0.484) and the raw best-response orbit's residual
+regret (~0.44) -- for 2022 it's in the same range as the orbit (0.666 vs.
+~0.76) rather than clearly better, so this isn't a universal win, but 2024
+shows a real gap in the direction the mixed-strategy hypothesis predicts:
+a TIME-AVERAGED (i.e., mixed) strategy pair can out-perform anything found
+by searching over PURE strategy pairs directly. That is the signature this
+project's "Revised order of work" flagged fictitious play as a cheap first
+diagnostic for, and it is consistent enough with a mixed equilibrium to
+justify the full double-oracle solve below rather than treating the
+E_min section's pure-strategy floor as the last word.
+
+Raw output: `results/fictitious_play_{cycle}.json`, average allocations at
+`results/fictitious_play_avg_party_{d,r}_{cycle}.npy`.
+
+## Double-oracle mixed equilibrium: converges for 2024, still growing for 2022 (2026-08-12)
+
+The full mixed-strategy solve (`game/double_oracle.py`, driven by
+`scripts/double_oracle.py`): treat an entire 433-race allocation vector as
+one pure strategy ("portfolio"), build a payoff matrix over a small,
+growing pool of D and R portfolios, solve the finite zero-sum matrix game
+EXACTLY via LP (`solve_zero_sum_matrix_game`, von Neumann minimax --
+row-player and column-player LPs agreed to within `1e-12` seats on every
+round run so far, i.e. no numerical daylight between the two sides' LPs),
+then compute each side's EXACT best response to the opponent's mixture
+(`br_d_to_mixture`/`br_r_to_mixture` -- not the fictitious-play shortcut of
+best-responding to the opponent's average allocation, but the true
+race-separable expectation over the discrete mixture) and add it to the
+pool if it improves by more than `eps=0.02` seats. Classic double-oracle
+(McMahan, Gordon & Blum 2003): the strategy space grows with the search
+instead of being fixed in advance.
+
+Both cycles seeded with the same 6 portfolios per side: observed, uniform,
+zero, the one-shot unilateral best response, the E_min search's best
+candidate, and the fictitious-play time-average -- i.e., every
+strategically-motivated allocation already computed for that cycle.
+
+**2024: converged after 13 rounds.** Final pools 15 (D) / 13 (R); support
+shrinks to 5 portfolios per side (`d_gain`/`r_gain` both under 0.02 seats
+at the stopping round). Value (E[D seats] at the mixed equilibrium) =
+**218.60** -- matching the E_min search's 218.31 and the raw BR-dynamics
+orbit's ~218.3-218.6 (`docs/results_2022_2024.md`) to within the same
+noise band all three independent methods have been landing in. All 5 of
+D's support portfolios were discovered DURING the oracle search (none of
+the 6 seeds survive in D's final mixture); R's mixture keeps the
+fictitious-play average (weight 0.22) alongside 4 oracle-discovered
+portfolios.
+
+**2022: did not converge in the first 25 rounds** -- pools grew to 31 (D) /
+30 (R), support grew to 10/10, and `d_gain`/`r_gain` were still bouncing in
+the 0.02-0.5 range with no visible shrinking trend by round 24 (contrast
+2024's clean monotonic approach to `eps` in 13 rounds). Resumed from the
+grown 31/30 pool (not restarted) for up to 40 more rounds --
+**converged after 27 additional rounds** (52 combined), final pools 53 (D)
+/ 48 (R), support 11/11. Value = **216.375** -- matching the E_min search's
+216.07 and the raw BR-dynamics orbit's ~215.2-216.5 (`docs/
+results_2022_2024.md`). So 2022 DOES have a mixed equilibrium the
+double-oracle process finds -- it just needed roughly 4x the rounds and
+resulted in roughly double the support size (11 vs. 5) that 2024 needed.
+Raw output: `results/double_oracle_2022_resumed.json`.
+
+**Reading this together with the pure-strategy sections above**: both
+cycles now have three independent methods (E_min direct search, fictitious
+play, double oracle) landing on compatible values -- 2024 in the
+218.3-218.6 band, 2022 in the 215.2-216.5 band -- with double oracle
+additionally showing that a small-support mixture (5 portfolios for 2024,
+11 for 2022) achieves a value neither the best pure point found (E_min:
+218.31 / 216.07) nor the raw orbit fully reaches without residual regret --
+direct evidence for "no stable deterministic portfolio, but a stable
+distribution over a HANDFUL of near-optimal targeting portfolios," the
+working thesis this project's roadmap flagged as the more original result
+if it held up. The real remaining asymmetry is in DIFFICULTY, not
+existence: 2022's equilibrium support is roughly double 2024's and took
+roughly 4x the double-oracle rounds to find -- worth understanding (a
+genuinely flatter/more contested landscape in 2022? more near-tied
+marginal races?) rather than treating as a solved footnote now that both
+converged.
+
+Raw output: `results/double_oracle_{cycle}.json`; per-portfolio allocations
+at `results/double_oracle_{d,r}_portfolio_{i}_{cycle}.npy`.
+
+## Level D five-way benchmark: H3 REJECTED, both cycles (2026-08-12)
+
+Spec Section 20's fourth validation level, previously unbuilt (`docs/
+results_2022_2024.md` flagged it as the clear next step): compare the
+OBSERVED allocation against equal allocation, a Cook-category heuristic,
+the one-sided optimizer, the (mixed) equilibrium, and random feasible
+portfolios, by L1 distance and E[D seats]. This is the test spec's H3
+("observed allocations are substantially closer to Nash equilibrium than
+to unilateral optima") actually needs.
+
+`game/benchmarks.py` builds the three non-solver strategies (equal, Cook
+heuristic, random feasible), each defined for BOTH sides so "E[D seats]"
+means D's-version-of-the-strategy against R's-version-of-the-strategy, not
+one side's benchmark against the other's OBSERVED allocation:
+
+- **Equal**: uniform across all 433 races.
+- **Cook heuristic**: proportional to a fixed competitiveness weight by
+  Cook category (Toss-Up=5, Lean=3, Likely=1, Safe=0 -- same weights
+  regardless of which party currently favors the race), capped per race
+  and redistributed (`cap_and_redistribute`, a fixed-proportions water-
+  filling analogue for benchmarks that aren't themselves optimizer output).
+- **One-sided optimizer**: `BR_D(R_observed)` vs. `BR_R(D_observed)`,
+  played against EACH OTHER (not against the observed opponent that
+  produced them).
+- **Mixed equilibrium**: the double-oracle LP value (the game-theoretically
+  correct E[D seats] under the mixture -- NOT recomputed from the
+  mixture's average portfolio, since `p_win_shared` is nonlinear in the
+  opponent's spending); L1 distance uses the mixture's EXPECTED portfolio
+  (`sum_j p_j * portfolio_j`) as a descriptive summary only, reported
+  separately from the value for exactly that reason. 2022 uses the
+  converged extended double-oracle run (`double_oracle_2022_resumed.json`,
+  53/48-portfolio pools), not the original 25-round run that hadn't
+  converged.
+- **Random feasible**: mean over 20 independent Dirichlet-weighted random
+  portfolios per side.
+
+`scripts/level_d_benchmark.py`, run on both cycles:
+
+| Cycle | Closest to observed (L1) | 2nd | 3rd | 4th | Farthest |
+|---|---|---|---|---|---|
+| 2024 | **Cook heuristic** ($192.1M) | equal ($271.4M) | random ($273.2M) | one-sided ($292.6M) | mixed equilibrium ($293.1M) |
+| 2022 | **Cook heuristic** ($203.5M) | equal ($335.0M) | random ($338.3M) | one-sided ($344.7M) | mixed equilibrium ($349.2M) |
+
+**Both cycles replicate the same ranking, and it is the opposite of H3.**
+Observed DCCC/NRCC spending is closest, by a wide margin, to a simple
+Cook-category competitiveness heuristic -- NOT to either the one-sided
+optimizer or the mixed equilibrium, which are (within noise) tied for
+FARTHEST from observed on both cycles. Equal allocation and random
+feasible portfolios both land closer to observed than either
+optimization-derived benchmark does, in both cycles.
+
+E[D seats] tells a consistent story: Cook heuristic (218.14 / 215.82) is
+close to observed (217.17 / 215.17), while the optimization-derived
+strategies score higher (one-sided: 218.50 / 216.40; mixed equilibrium:
+218.60 / 216.38) -- the strategies that are FARTHEST in allocation space
+also perform BEST, exactly the pattern you'd expect if committees are
+optimizing much less aggressively than either benchmark and instead
+following something closer to a competitiveness-proportional rule of
+thumb.
+
+**Per spec Section 27's decision gate: H3 is REJECTED, replicated across
+two independent cycles.** This closes out this project's last open Level D
+question with a clean, if not the hoped-for, answer: real committee
+behavior in this dataset does not resemble either a unilateral optimum or
+a game-theoretic (mixed) equilibrium nearly as much as it resembles a
+much simpler heuristic. That is itself informative for how to read every
+other result in this project -- the exploitability/regret numbers
+(observed E~5.1-5.4 seats) and the mixed-equilibrium characterization are
+descriptions of the STRATEGIC GAME'S structure, not evidence that real
+committees are approximately playing it.
+
+Raw output: `results/level_d_benchmark_{cycle}.json`.
+
+## D/R elasticity symmetry test: rejected in the full sample, but largely a common-support artifact (2026-08-12, revised same day)
+
+Spec Section 19: "Do not simply mirror the Democratic response curve onto
+Republicans without testing it." `game/payoff.py`'s shared formula uses ONE
+coefficient, `coef.beta1` (== `beta_rc.estimate`), for the log-spending-
+share-ratio term `c_spend * log(x_D/(x_D+x_R))` applied identically to both
+sides' dollars -- so the real question was never "does the formula treat D
+and R differently" (it doesn't, by construction), but "was that one
+coefficient ever estimated on a sample that could reveal an asymmetry if
+one existed." Until now, `beta_rc.identify_repeat_pairs` only ever selected
+the sample where the DEMOCRAT is the repeat challenger (`incumb_status ==
+"Challenger"`, R holds the seat) -- beta1 had only ever been tested on "D
+attacking an R-held seat," never the mirror image.
+
+`identify_repeat_pairs` now takes a `challenger_party` parameter
+(`scripts/estimate_response_model.py::test_d_r_symmetry`): `"D"` is the
+original sample; `"R"` selects `incumb_status == "Incumbent"` (D holds the
+seat, R is the repeat challenger), using the SAME margin_pp/D-spending-
+share units, so the two fits are directly comparable. (Fixing this also
+surfaced a latent bug: `_normalize_name` crashed on `NaN` challenger names,
+which the "D" sample happened to never contain but the "R" sample does --
+now filtered out before matching, for both branches.)
+
+| Sample | n pairs | beta estimate | SE | 95% CI |
+|---|---|---|---|---|
+| D-challenger (original beta_rc) | 118 | 5.47 | 1.59 | [2.36, 8.59] |
+| R-challenger (mirror-image) | 143 | 24.17 | 7.60 | [9.28, 39.06] |
+
+The confidence intervals do not overlap. A pooled OLS with a challenger-
+party interaction term (equivalent to a Chow test for equal slopes, same
+HC3 robust covariance `estimate_beta_rc` already uses) puts the difference
+at 18.69 (SE 7.76, t=2.41, **p=0.016) -- symmetry is REJECTED at
+alpha=0.05.**
+
+**Important caveat before over-reading the 4.4x magnitude**: the two
+samples' identifying variation is wildly different in scale.
+`delta_log_ratio` (the regressor) has std=1.88 (range -6.77 to 2.64) in the
+D-challenger sample but std=0.177 (range -0.67 to 0.78) in the R-challenger
+sample -- roughly 10x narrower. That thinner identifying variation is
+exactly why beta_R's SE (7.60) is ~5x beta_D's (1.59). But there is a
+sharper, more consequential version of this same observation, below.
+
+### Common-support re-test: the two samples occupy almost disjoint regions of the spending-share axis
+
+`identify_repeat_pairs` now also returns `ratio_prev`/`ratio_curr` (D's
+share of combined D+R spend at each endpoint of a pair) so this can be
+checked directly, not just inferred from the regressor's variance.
+`ratio_mid = (ratio_prev + ratio_curr) / 2` summarizes where on the
+spending-share axis each pair sits:
+
+| Sample | mean D-share | median D-share |
+|---|---|---|
+| D-challenger | 0.222 | 0.112 |
+| R-challenger | 0.899 | 0.960 |
+
+These are not overlapping ranges -- they are close to OPPOSITE extremes.
+D-challenger pairs are races where D (the challenger) is chronically
+outspent by R; R-challenger pairs are races where R (the challenger) is
+outspent even more severely by the D incumbent (median R gets only ~4% of
+combined spending). This matters because the whole reason this project's
+payoff formula saturates with a tanh ceiling (`payoff.p_win_shared`'s
+module docstring, and the HI-02 incident it documents: a $10-on-record R
+candidate producing an absurd extrapolation) is that the raw log-ratio
+relationship is not linear everywhere -- it is steepest near the extremes
+and flattens elsewhere. Measuring "beta" in a sample that sits almost
+entirely in the extreme, barely-funded-challenger region (R-challenger,
+median R-share ~4%) versus a sample sitting in a more moderate
+underfunded-challenger region (D-challenger, median D-share ~11%) risks
+comparing the LOCAL SLOPE at two different points on a concave curve, not
+a clean party-vs-party difference.
+
+`scripts/estimate_response_model.py::common_support_symmetry_test` re-runs
+the full test after trimming BOTH samples to a shared `ratio_mid` band:
+
+| Band | n (D, R) | beta_D | beta_R | diff | p-value | Verdict |
+|---|---|---|---|---|---|---|
+| Untrimmed | 118, 143 | 5.47 | 24.17 | 18.69 | **0.016** | Reject |
+| [0.10, 0.90] | 63, 46 | 10.04 | 19.07 | 9.03 | **0.188** | Cannot reject |
+| [0.20, 0.80] | 44, 24 | 8.48 | 17.15 | 8.67 | **0.188** | Cannot reject (R below min-pairs threshold, SE unreliable) |
+
+Restricting to the [0.10, 0.90] band -- the widest window where BOTH
+trimmed samples still clear `min_repeat_pairs` (40) -- the point estimates
+move much closer together (10.04 vs. 19.07, versus 5.47 vs. 24.17
+untrimmed) and the interaction test's p-value rises from 0.016 to 0.188:
+**symmetry can no longer be rejected at conventional significance once
+both samples are compared on overlapping ground.** The direction persists
+(beta_R still numerically larger in every band) but is no longer
+statistically distinguishable from sampling noise at this sample size.
+
+**Reading the two results together**: the untrimmed rejection was real but
+substantially confounded by near-disjoint support -- a large part of what
+looked like "R's dollars are more persuasive than D's" is better explained
+by "the two samples measure the log-ratio relationship at very different,
+extreme points on a concave curve, and a linear-in-log-ratio specification
+does not extrapolate cleanly between them." This does not resupport strict
+symmetry either (the direction and rough magnitude of the gap survive
+trimming, just without significance at n=46-63) -- the honest state of
+evidence is "a real but small-sample-uncertain asymmetry, most of the
+apparent 4.4x untrimmed gap driven by comparing different regions of a
+nonlinear curve rather than a clean party effect."
+
+**What this means for the current payoff model**: `game/payoff.py`'s
+single shared `c_spend` (and the identically-applied `c_max` persuasion
+ceiling) remains an approximation, but the case for urgently rebuilding it
+around party-specific elasticities is weaker than the untrimmed result
+alone suggested -- the common-support estimates (10.04 vs. 19.07) are
+closer together and their difference is no longer significant. Rebuilding
+the payoff around party-specific elasticities is still real estimation and
+re-derivation work (a new `c_spend_R` distinct from `c_spend_D`, threaded
+through `baseline_arrays`/`p_win_shared`/`grad_shared`, and every
+downstream BR/exploitability/equilibrium result re-run against it) -- out
+of scope to fold into this fix, and now a lower priority than it looked
+from the untrimmed test alone. Any claim that this
+project's results are symmetric OR asymmetric between the two parties
+needs this section (not just the untrimmed table above it) cited.
+
+Raw output: `results/d_r_symmetry_test.json` (untrimmed),
+`results/d_r_symmetry_common_support.json` (banded re-test).
+
 ## The PSV baseline choice (spec Section 14)
 
 Read literally, `PSV_i = U_D(D', BR_R(D')) - U_D(D, R)` measures against the
@@ -437,7 +793,7 @@ data_catalog.md` has the full before/after table.
 
 ## Known open items (see spec Section 19, addressed only partially)
 
-- **D/R elasticity symmetry test**: not implemented (`scripts/estimate_response_model.py::test_d_r_symmetry` raises `NotImplementedError` with what it would take). Until run, treat `MSG^R` as "D's mirrored elasticity," an assumption, not a tested symmetric response curve. The 2026-08-12 payoff fix makes both sides share one formula, but `c_max` applied identically to R is still unvalidated for R specifically -- this test would also bear on whether a common `c_max` is defensible, not just `beta_D = beta_R`.
+- ~~**D/R elasticity symmetry test**~~: closed 2026-08-12 -- see "D/R elasticity symmetry test: rejected in the full sample, but largely a common-support artifact" above. Untrimmed, `beta_D` (5.47) and `beta_R` (24.17) reject symmetry at p=0.016 -- but the two samples sit at nearly disjoint D-spending-share regions (mean 0.22 vs. 0.90), and restricting both to a shared [0.10, 0.90] band moves the estimates much closer (10.04 vs. 19.07) and the test can no longer reject symmetry (p=0.188). Net read: a real but small-sample-uncertain asymmetry, with most of the untrimmed 4.4x gap explained by comparing different regions of a nonlinear (concave) response curve rather than a clean party effect. Rebuilding the payoff with party-specific elasticities remains open but is now a lower priority than the untrimmed result alone suggested.
 - ~~**R-side concave surrogate validation**~~: closed 2026-08-12 -- see "Concave-envelope surrogate, validated for BOTH sides" above. `game/best_response_surrogate.py` replaces the old, never-validated `surrogate_allocate_r`; benchmarked against the current `game/best_response.py::br_d/br_r` directly.
-- **Level D five-way benchmark comparison**: only the Nash-vs-observed L1 distance is wired up so far.
-- **Nash equilibrium does not converge under best-response dynamics** (2026-08-12): confirmed under two damping regimes on both cycles -- see the dedicated section above. Open questions: does a mixed-strategy equilibrium exist and is it computable here; do multiple pure equilibria exist and is the game's structure characterizable well enough to enumerate them; would a genuinely different dynamic (e.g. simultaneous/Jacobi rather than Gauss-Seidel, or a fictitious-play average-strategy tracker) behave differently. `docs/results_2022_2024.md` needs a full re-run against the current payoff before any of its headline numbers (exploitability OR Nash) are cited again.
+- ~~**Level D five-way benchmark comparison**~~: closed 2026-08-12 -- see "Level D five-way benchmark: H3 REJECTED" above. Observed spending is closest to a Cook-category heuristic and roughly tied for farthest from both the one-sided optimizer and the mixed equilibrium, on both cycles. H3 does not hold in this data.
+- ~~**Nash equilibrium does not converge under best-response dynamics**~~: partially addressed 2026-08-12 -- "Direct pure-strategy exploitability minimum," "Fictitious play," and "Double-oracle mixed equilibrium" sections above. Direct search confirms the residual-regret floor is not a search-thoroughness artifact (E_min lands back in the same 0.48-0.86 band the original dynamics found); fictitious play's time-average beats the best pure point found for 2024; double oracle finds a small-support mixed equilibrium. Still open: whether multiple PURE equilibria exist and the game's structure is characterizable well enough to enumerate them (not distinguished from the mixed-equilibrium explanation by anything run so far); the D/R elasticity symmetry test above, needed before any of this is read as a symmetric causal claim rather than a property of the current estimated payoff. `docs/results_2022_2024.md` needs a full re-run against the current payoff before any of its headline numbers (exploitability OR Nash) are cited again.

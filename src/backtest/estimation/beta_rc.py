@@ -44,6 +44,7 @@ def identify_repeat_pairs(
     spend: pd.DataFrame,
     incumb: pd.DataFrame,
     generic_ballot_by_cycle: dict[int, float] | None = None,
+    challenger_party: str = "D",
 ) -> pd.DataFrame:
     """
     Find consecutive-cycle pairs where the same challenger faces the same incumbent.
@@ -54,20 +55,48 @@ def identify_repeat_pairs(
     spend   : columns [district_id, cycle, d_total, r_total]
     incumb  : columns [district_id, cycle, incumb_status, incumbent_name, challenger_name]
     generic_ballot_by_cycle : {cycle: GB_value} for ΔGB control in β_RC regression
+    challenger_party : "D" (default, the original behavior) selects races where
+        the DEMOCRAT is the repeat challenger (incumb_status == "Challenger" --
+        R holds the seat, per incumbency.py's D-perspective convention). "R"
+        selects the mirror-image sample: races where the REPUBLICAN is the
+        repeat challenger (incumb_status == "Incumbent" -- D holds the seat).
+        challenger_name is populated with "the challenger" regardless of which
+        party that is (incumbency.py), so the matching logic below is
+        unchanged either way -- only which incumb_status value selects the
+        sample changes. delta_margin/delta_log_ratio stay in the SAME D-margin,
+        D-spending-share units in both cases, so a beta fit on the "R" sample
+        is directly comparable to one fit on the "D" sample -- see
+        scripts/estimate_response_model.py::test_d_r_symmetry, which is the
+        reason this parameter exists (project_spec.md Section 19).
 
     Returns DataFrame with columns:
         district_id, cycle_t, cycle_tm1,
-        delta_margin, delta_log_ratio, delta_gb
+        delta_margin, delta_log_ratio, delta_gb,
+        ratio_prev, ratio_curr (D's share of combined D+R spend at each
+        endpoint -- added so callers can check WHERE on the spending-share
+        axis a sample's identifying variation sits, e.g.
+        scripts/estimate_response_model.py's common-support symmetry
+        re-test, which found the D- and R-challenger samples occupy nearly
+        disjoint regions of this axis)
     """
+    if challenger_party not in ("D", "R"):
+        raise ValueError(f"challenger_party must be 'D' or 'R', got {challenger_party!r}")
+    incumb_status_filter = "Challenger" if challenger_party == "D" else "Incumbent"
     cycles = sorted(config.panel_cycles())
 
     pairs = []
     for i in range(1, len(cycles)):
         c_prev, c_curr = cycles[i - 1], cycles[i]
 
-        # Races where D was challenger in both cycles (incumbent is R)
-        inc_prev = incumb[(incumb["cycle"] == c_prev) & (incumb["incumb_status"] == "Challenger")]
-        inc_curr = incumb[(incumb["cycle"] == c_curr) & (incumb["incumb_status"] == "Challenger")]
+        # challenger_party="D": races where D was challenger in both cycles (incumbent is R).
+        # challenger_party="R": races where R was challenger in both cycles (incumbent is D).
+        # Rows with a missing challenger_name (NaN, e.g. an unopposed incumbent) are dropped
+        # here rather than left for _normalize_name to choke on -- previously latent, since
+        # the "D" branch's challenger_name happened to always be populated; the "R" branch
+        # (added 2026-08-12) hits real NaNs.
+        has_challenger = incumb["challenger_name"].notna() & (incumb["challenger_name"].astype(str).str.strip() != "")
+        inc_prev = incumb[(incumb["cycle"] == c_prev) & (incumb["incumb_status"] == incumb_status_filter) & has_challenger]
+        inc_curr = incumb[(incumb["cycle"] == c_curr) & (incumb["incumb_status"] == incumb_status_filter) & has_challenger]
 
         merged = inc_prev.merge(
             inc_curr, on="district_id", suffixes=("_prev", "_curr")
@@ -112,11 +141,13 @@ def identify_repeat_pairs(
         pair_df["delta_gb"] = gb.get(c_curr, 0.0) - gb.get(c_prev, 0.0)
 
         pairs.append(pair_df[["district_id", "cycle_t", "cycle_tm1",
-                               "delta_margin", "delta_log_ratio", "delta_gb"]])
+                               "delta_margin", "delta_log_ratio", "delta_gb",
+                               "ratio_prev", "ratio_curr"]])
 
     if not pairs:
         return pd.DataFrame(columns=["district_id", "cycle_t", "cycle_tm1",
-                                     "delta_margin", "delta_log_ratio", "delta_gb"])
+                                     "delta_margin", "delta_log_ratio", "delta_gb",
+                                     "ratio_prev", "ratio_curr"])
 
     return pd.concat(pairs, ignore_index=True)
 
