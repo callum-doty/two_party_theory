@@ -203,6 +203,106 @@ def common_support_symmetry_test(bands: tuple[tuple[float, float], ...] = ((0.0,
     return out
 
 
+def _poly_features(s: np.ndarray, degree: int = 3) -> np.ndarray:
+    """u^1..u^degree, u = s - 0.5 (centered to cut collinearity between
+    powers over a share variable that lives in [0,1])."""
+    u = np.asarray(s, dtype=float) - 0.5
+    return np.column_stack([u ** k for k in range(1, degree + 1)])
+
+
+def nonlinear_common_curve_test(degree: int = 3,
+                                 bands: tuple[tuple[float, float], ...] = ((0.0, 1.0), (0.1, 0.9))) -> dict:
+    """Replaces "two linear elasticities" with a single flexible nonlinear
+    response function and re-tests symmetry against it -- the follow-up
+    `common_support_symmetry_test`'s own finding motivates: the untrimmed
+    beta_D/beta_R gap was largely explained by comparing a linear-in-
+    log-ratio model at two very different, non-overlapping points on what
+    is plausibly a CONCAVE curve. That diagnosis was made using the same
+    log-ratio functional form throughout -- this function asks whether the
+    conclusion holds under a genuinely different, more flexible
+    parameterization, not just a relabeling of the same transform.
+
+    g(s) = sum_k beta_k * (s - 0.5)^k, k=1..degree, s = D's share of
+    combined D+R spend -- a level-based, not log-ratio-based, cubic
+    (default) response function. g's own intercept term cancels exactly
+    under first-differencing (same district, same challenger, so any
+    ADDITIVE constant drops out) -- only the shape terms
+    (s-0.5), (s-0.5)^2, (s-0.5)^3 survive, fit via
+    delta_margin = g(s_curr) - g(s_prev) + eps, linear in the poly
+    coefficients (a finite-difference regression -- same OLS machinery as
+    estimate_beta_rc, different design matrix).
+
+    Symmetry test: pool D- and R-challenger pairs, interact the full
+    poly-difference design with an is_r_challenger dummy, and F-test
+    whether the interaction coefficients (i.e. the R-side curve's shape)
+    are jointly zero -- the nonlinear generalization of the single-
+    coefficient Chow test `test_d_r_symmetry`/`common_support_symmetry_test`
+    already run on the log-ratio specification."""
+    cycles = config.panel_cycles()
+    gb = _load_generic_ballot()
+    panel_results = pd.concat([elections.load_results(c) for c in cycles], ignore_index=True)
+    panel_spend = pd.concat([fec.build_total_spend(c) for c in cycles], ignore_index=True)
+    panel_incumb = pd.concat([incumbency.load_incumbency(c) for c in cycles], ignore_index=True)
+
+    pairs_d = beta_rc_module.identify_repeat_pairs(
+        panel_results, panel_spend, panel_incumb, gb, challenger_party="D")
+    pairs_r = beta_rc_module.identify_repeat_pairs(
+        panel_results, panel_spend, panel_incumb, gb, challenger_party="R")
+    pairs_d = pairs_d.assign(ratio_mid=(pairs_d["ratio_prev"] + pairs_d["ratio_curr"]) / 2)
+    pairs_r = pairs_r.assign(ratio_mid=(pairs_r["ratio_prev"] + pairs_r["ratio_curr"]) / 2)
+
+    band_results = {}
+    for lo, hi in bands:
+        label = f"[{lo:.2f},{hi:.2f}]" if (lo, hi) != (0.0, 1.0) else "untrimmed"
+        d_band = pairs_d[(pairs_d.ratio_mid >= lo) & (pairs_d.ratio_mid <= hi)]
+        r_band = pairs_r[(pairs_r.ratio_mid >= lo) & (pairs_r.ratio_mid <= hi)]
+        n_d, n_r = len(d_band), len(r_band)
+        logger.info(f"Band {label}: D n={n_d}, R n={n_r}")
+        if n_d < degree + 2 or n_r < degree + 2:
+            logger.warning(f"Band {label}: too few pairs for a degree-{degree} fit -- skipping.")
+            continue
+
+        d_diff = _poly_features(d_band.ratio_curr, degree) - _poly_features(d_band.ratio_prev, degree)
+        r_diff = _poly_features(r_band.ratio_curr, degree) - _poly_features(r_band.ratio_prev, degree)
+        poly_names = [f"u{k}" for k in range(1, degree + 1)]
+
+        is_r = np.concatenate([np.zeros(n_d), np.ones(n_r)])
+        diffs = np.vstack([d_diff, r_diff])
+        y = np.concatenate([d_band.delta_margin.to_numpy(), r_band.delta_margin.to_numpy()])
+
+        common_cols = {f"common_{name}": diffs[:, i] for i, name in enumerate(poly_names)}
+        interact_cols = {f"interact_{name}": diffs[:, i] * is_r for i, name in enumerate(poly_names)}
+        X = pd.DataFrame({"const": 1.0, "is_r": is_r, **common_cols, **interact_cols})
+        model = sm.OLS(y, X).fit(cov_type="HC3")
+
+        interact_names = [f"interact_{name}" for name in poly_names]
+        restriction = ", ".join(f"{name} = 0" for name in interact_names)
+        f_test = model.f_test(restriction)
+        p_value = float(f_test.pvalue)
+        reject = p_value < 0.05
+
+        logger.info(f"[{label}, degree={degree}] joint F-test on R-side shape terms "
+                    f"({interact_names}): F={float(f_test.fvalue):.3f}, p={p_value:.4f} "
+                    f"-> {'REJECT' if reject else 'CANNOT REJECT'} g_D == g_R at alpha=0.05")
+
+        band_results[label] = {
+            "n_d": n_d, "n_r": n_r, "degree": degree,
+            "common_coefficients": {name: float(model.params[f"common_{name}"]) for name in poly_names},
+            "interaction_coefficients": {name: float(model.params[f"interact_{name}"]) for name in poly_names},
+            "f_test": {"statistic": float(f_test.fvalue), "df_num": int(f_test.df_num),
+                       "df_denom": int(f_test.df_denom), "p_value": p_value},
+            "reject_symmetry_at_0.05": reject,
+            "r_squared": float(model.rsquared),
+        }
+
+    out = {"degree": degree, "bands": band_results}
+    out_path = REPO_ROOT / "results" / "d_r_symmetry_nonlinear.json"
+    with open(out_path, "w") as f:
+        json.dump(out, f, indent=2)
+    logger.info(f"Saved -> {out_path}")
+    return out
+
+
 def test_d_r_symmetry() -> dict:
     """beta_D_sample == beta_R_sample? (spec Section 19). Fits
     `beta_rc.estimate_beta_rc` on both the D-repeat-challenger sample
@@ -251,6 +351,9 @@ def main() -> None:
     parser.add_argument("--run-symmetry-test", action="store_true")
     parser.add_argument("--common-support-test", action="store_true",
                          help="Re-test symmetry restricted to overlapping D-spending-share bands.")
+    parser.add_argument("--nonlinear-test", action="store_true",
+                         help="Re-test symmetry against a flexible nonlinear g(s) instead of a linear log-ratio slope.")
+    parser.add_argument("--nonlinear-degree", type=int, default=3)
     args = parser.parse_args()
 
     logger.info("The spending-response model is reused unchanged from the old project. "
@@ -259,6 +362,8 @@ def main() -> None:
         test_d_r_symmetry()
     if args.common_support_test:
         common_support_symmetry_test()
+    if args.nonlinear_test:
+        nonlinear_common_curve_test(degree=args.nonlinear_degree)
 
 
 if __name__ == "__main__":

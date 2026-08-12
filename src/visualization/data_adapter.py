@@ -41,6 +41,27 @@ def load_persistent_value(cycle: int) -> dict:
         return json.load(f)
 
 
+def load_double_oracle_support(cycle: int) -> dict:
+    """D-side and R-side equilibrium support (portfolio index, label,
+    mixture weight) for best_response_dynamics.py's mixed-equilibrium
+    scene -- from scripts/double_oracle.py's output. Prefers a
+    `_resumed` run over the primary one if both exist for this cycle
+    (mirrors game/double_oracle.py::load_solved's convention, but this
+    function stays JSON-only / Manim-import-free per this module's own
+    design rule, so it doesn't import game/double_oracle.py itself)."""
+    resumed = RESULTS_DIR / f"double_oracle_{cycle}_resumed.json"
+    primary = RESULTS_DIR / f"double_oracle_{cycle}.json"
+    path = resumed if resumed.exists() else primary
+    with open(path) as f:
+        meta = json.load(f)
+    return {
+        "d_support": sorted(meta["d_support"], key=lambda s: -s["weight"]),
+        "r_support": sorted(meta["r_support"], key=lambda s: -s["weight"]),
+        "value_e_seats_d": meta["value_e_seats_d"],
+        "converged": meta.get("converged", True),
+    }
+
+
 def load_exploitability_table(cycles: list[int]) -> pd.DataFrame:
     """One row per cycle: Dem regret / GOP regret / total exploitability
     (spec §22 output #3), from scripts/compute_exploitability.py's output."""

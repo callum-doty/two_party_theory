@@ -26,7 +26,9 @@ game/equilibrium.py's fictitious_play() uses as a cheaper diagnostic).
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 from scipy.optimize import linprog, minimize
@@ -34,6 +36,48 @@ from scipy.optimize import linprog, minimize
 from . import payoff
 
 SCALE = 1_000_000.0
+
+
+def load_solved(results_dir: Path, cycle: int) -> dict | None:
+    """Reloads a completed double_oracle() run's pools + mixture from disk
+    (scripts/double_oracle.py's saved output) -- shared by every downstream
+    consumer of a solved equilibrium (scripts/level_d_benchmark.py,
+    scripts/equilibrium_support_composition.py) so they agree on which file
+    wins when both a primary and a resumed run exist for the same cycle.
+    Prefers `double_oracle_{cycle}_resumed.json` (a continued run from a
+    grown pool, e.g. 2022's non-convergent 25-round run resumed for 27 more)
+    over `double_oracle_{cycle}.json` if both are present. Returns None if
+    neither exists.
+
+    Returns a dict with the raw pools/mixtures (d_pool, r_pool, p, q) as
+    well as the LP value and each portfolio's mixture weight -- NOT just
+    the mixture's expected/average portfolio, since p_win_shared is
+    nonlinear in the opponent and downstream per-race variance analysis
+    needs the individual portfolios and their weights, not just their
+    weighted mean."""
+    results_dir = Path(results_dir)
+    resumed = results_dir / f"double_oracle_{cycle}_resumed.json"
+    primary = results_dir / f"double_oracle_{cycle}.json"
+    path = resumed if resumed.exists() else primary
+    if not path.exists():
+        return None
+    with open(path) as f:
+        meta = json.load(f)
+    n_d = meta["final_d_pool_size"]
+    n_r = meta["final_r_pool_size"]
+    d_pool = [np.load(results_dir / f"double_oracle_d_portfolio_{i}_{cycle}.npy") for i in range(n_d)]
+    r_pool = [np.load(results_dir / f"double_oracle_r_portfolio_{i}_{cycle}.npy") for i in range(n_r)]
+    p = np.zeros(n_d)
+    for s in meta["d_support"]:
+        p[s["index"]] = s["weight"]
+    q = np.zeros(n_r)
+    for s in meta["r_support"]:
+        q[s["index"]] = s["weight"]
+    return {
+        "d_pool": d_pool, "r_pool": r_pool, "p": p, "q": q,
+        "value_e_seats_d": meta["value_e_seats_d"],
+        "converged": meta.get("converged", True), "source_file": path.name,
+    }
 
 
 def payoff_matrix(d_pool: list[np.ndarray], r_pool: list[np.ndarray], arrays: dict) -> np.ndarray:

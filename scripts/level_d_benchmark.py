@@ -66,6 +66,7 @@ import numpy as np  # noqa: E402
 from build_cycle_state import build_cycle_state  # noqa: E402
 from game import benchmarks  # noqa: E402
 from game import best_response as br  # noqa: E402
+from game import double_oracle as do  # noqa: E402
 from game import payoff  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s")
@@ -79,30 +80,19 @@ def _l1(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def _load_double_oracle(results_dir: Path, cycle: int) -> dict | None:
-    """Prefers the resumed/converged run if one exists for this cycle."""
-    resumed = results_dir / f"double_oracle_{cycle}_resumed.json"
-    primary = results_dir / f"double_oracle_{cycle}.json"
-    path = resumed if resumed.exists() else primary
-    if not path.exists():
+    """Thin wrapper over game/double_oracle.py::load_solved -- adds the
+    mixture's EXPECTED portfolio (sum_j p_j * portfolio_j), which is only
+    a descriptive L1-distance summary here (see this script's module
+    docstring), not something other callers of load_solved necessarily want."""
+    solved = do.load_solved(results_dir, cycle)
+    if solved is None:
         return None
-    with open(path) as f:
-        meta = json.load(f)
-    n_d = meta["final_d_pool_size"]
-    n_r = meta["final_r_pool_size"]
-    d_pool = [np.load(results_dir / f"double_oracle_d_portfolio_{i}_{cycle}.npy") for i in range(n_d)]
-    r_pool = [np.load(results_dir / f"double_oracle_r_portfolio_{i}_{cycle}.npy") for i in range(n_r)]
-    p = np.zeros(n_d)
-    for s in meta["d_support"]:
-        p[s["index"]] = s["weight"]
-    q = np.zeros(n_r)
-    for s in meta["r_support"]:
-        q[s["index"]] = s["weight"]
-    expected_d = sum(w * dp for w, dp in zip(p, d_pool))
-    expected_r = sum(w * rp for w, rp in zip(q, r_pool))
+    expected_d = sum(w * dp for w, dp in zip(solved["p"], solved["d_pool"]))
+    expected_r = sum(w * rp for w, rp in zip(solved["q"], solved["r_pool"]))
     return {
-        "value_e_seats_d": meta["value_e_seats_d"],
+        "value_e_seats_d": solved["value_e_seats_d"],
         "expected_party_d": expected_d, "expected_party_r": expected_r,
-        "converged": meta.get("converged", True), "source_file": path.name,
+        "converged": solved["converged"], "source_file": solved["source_file"],
     }
 
 

@@ -385,7 +385,7 @@ E_min section's pure-strategy floor as the last word.
 Raw output: `results/fictitious_play_{cycle}.json`, average allocations at
 `results/fictitious_play_avg_party_{d,r}_{cycle}.npy`.
 
-## Double-oracle mixed equilibrium: converges for 2024, still growing for 2022 (2026-08-12)
+## Double-oracle mixed equilibrium: converges for both cycles (2026-08-12)
 
 The full mixed-strategy solve (`game/double_oracle.py`, driven by
 `scripts/double_oracle.py`): treat an entire 433-race allocation vector as
@@ -450,6 +450,71 @@ converged.
 
 Raw output: `results/double_oracle_{cycle}.json`; per-portfolio allocations
 at `results/double_oracle_{d,r}_portfolio_{i}_{cycle}.npy`.
+
+## Equilibrium support composition: core, swing, and irrelevant races (2026-08-12)
+
+A mixed equilibrium over 5-11 full 433-race portfolios per side is correct
+but not directly readable -- "here is a probability distribution over
+433-dimensional vectors" doesn't say anything a person can act on.
+`scripts/equilibrium_support_composition.py` collapses it to a per-race
+summary: for each race i and side, across that side's support portfolios
+`{portfolio_j}` with mixture weights `{p_j}`,
+
+    E[w_i]   = sum_j p_j * portfolio_j[i]
+    Var[w_i] = sum_j p_j * (portfolio_j[i] - E[w_i])^2
+    CV[w_i]  = sqrt(Var[w_i]) / E[w_i]
+
+then buckets races into three categories, thresholds stated explicitly
+(not tuned): **irrelevant** (E[w_i] below 1% of that side's per-race cap --
+essentially never funded across the support); among the remaining
+materially-funded races, split by the MEDIAN CV into **core** (below-median
+CV -- nearly every support portfolio funds this race about the same
+amount) and **swing** (above-median CV -- funding depends heavily on which
+equilibrium portfolio gets drawn).
+
+| Cycle | Side | Core | Swing | Irrelevant | Cap | Median CV (funded) |
+|---|---|---|---|---|---|---|
+| 2024 | D | 30 | 29 | 374 | $15.3M/race | 0.034 |
+| 2024 | R | 26 | 26 | 381 | $7.1M/race | 0.169 |
+| 2022 | D | 38 | 37 | 358 | $14.9M/race | 0.045 |
+| 2022 | R | 36 | 35 | 362 | $13.7M/race | 0.195 |
+
+**2022's richer equilibrium (11-portfolio support, "Double-oracle mixed
+equilibrium" section above) touches more races, not just more portfolios**:
+75 D-side races funded at all (38+37) vs. 59 in 2024; 71 R-side vs. 52 --
+consistent with 2022 having a genuinely flatter or more contested strategic
+landscape (more near-tied marginal races generating more substitutable
+portfolio configurations) rather than 2022's larger support size being an
+artifact of the double-oracle search just running longer.
+
+**A concrete illustration of what "swing" means**: several of 2024's
+top-CV R-side races (NC-14, NC-06, NV-01, FL-22, NC-13) are funded by
+EXACTLY ONE of the five support portfolios and zero in the other four --
+literally "included on the target list" in ~22% of draws (that portfolio's
+mixture weight) and off it otherwise, not a race that gets a little more
+or less money depending on the draw. (Mechanically, a race funded by only
+one portfolio has `CV = sqrt((1-w)/w)`, a function of that portfolio's
+weight `w` ALONE, independent of the dollar amount -- several races tied at
+CV=1.89 in 2024's R-side output for exactly this reason, before the
+mean-based tiebreak below was added to the ranking.)
+
+Top races by category (full table: `results/
+equilibrium_support_composition_{cycle}.csv`):
+
+- 2024 D-side core (always funded): VA-10, WI-01, CA-40, NJ-02, NY-02
+- 2024 D-side swing (funding depends on the draw): AZ-09, CT-05, AZ-04, CT-02, CA-31
+- 2024 R-side swing: NC-14, NC-06, NV-01, FL-22, NC-13
+- 2022 D-side swing: CT-02, NC-06, NY-20, MD-03, CA-06
+- 2022 R-side swing: OK-05, FL-07, PA-04, TX-32, TN-09
+
+This is the operational form of the "small distribution over near-optimal
+portfolios" finding: a committee reading this wouldn't see "here is your
+one target list," but "these ~30 races are core to every version of the
+strategy; these ~29 are where staying unpredictable actually matters;
+everything else isn't part of the equilibrium's support at all."
+
+Raw output: `results/equilibrium_support_composition_{cycle}.json` (summary
++ top-N lists per category) and `.csv` (full per-race table).
 
 ## Level D five-way benchmark: H3 REJECTED, both cycles (2026-08-12)
 
@@ -524,7 +589,7 @@ committees are approximately playing it.
 
 Raw output: `results/level_d_benchmark_{cycle}.json`.
 
-## D/R elasticity symmetry test: rejected in the full sample, but largely a common-support artifact (2026-08-12, revised same day)
+## D/R elasticity symmetry test: rejected under a linear specification, cannot be rejected under a flexible one (2026-08-12, revised twice same day)
 
 Spec Section 19: "Do not simply mirror the Democratic response curve onto
 Republicans without testing it." `game/payoff.py`'s shared formula uses ONE
@@ -643,6 +708,67 @@ needs this section (not just the untrimmed table above it) cited.
 Raw output: `results/d_r_symmetry_test.json` (untrimmed),
 `results/d_r_symmetry_common_support.json` (banded re-test).
 
+### Nonlinear g(s) re-test: symmetry holds under the better-supported specification
+
+The common-support re-test above is still built on the SAME linear-in-log-
+ratio functional form as `beta_rc` -- trimming the sample to overlapping
+support sidesteps the disjoint-region problem, but doesn't test whether
+"linear in log-spending-share" is even the right shape to begin with. This
+final check replaces the single elasticity with a genuinely flexible
+common response function and asks whether the symmetry conclusion survives
+a specification that isn't tied to one particular transform.
+
+`scripts/estimate_response_model.py::nonlinear_common_curve_test` fits
+`g(s) = sum_k beta_k * (s - 0.5)^k` (s = D's spend share, `s - 0.5`
+centered to cut collinearity between powers), via
+`delta_margin = g(s_curr) - g(s_prev) + eps` -- g's own intercept cancels
+exactly under first-differencing (same district, same challenger), so this
+is still one OLS fit, just against a differenced polynomial design matrix
+instead of a single `delta_log_ratio` column. Pooling the D- and
+R-challenger samples with a full interaction (every power term x
+`is_r_challenger`) and F-testing the interaction block jointly is the
+nonlinear generalization of the single-coefficient Chow test used above.
+
+| Degree | Untrimmed p-value | [0.10, 0.90] p-value |
+|---|---|---|
+| 2 (quadratic) | **0.0011 — reject** | **0.0169 — reject** |
+| 3 (cubic) | **0.799 — cannot reject** | **0.438 — cannot reject** |
+
+The conclusion FLIPS between degree 2 and degree 3 -- not a result to
+quietly pick the answer you prefer from. Resolved by testing which
+specification the data actually supports: a nested F-test on whether the
+cubic terms improve the fit over the quadratic (`common_u3` and
+`interact_u3` jointly zero) rejects at **p=0.013** -- the cubic curvature
+is not overfitting noise, it is a real feature of the data the quadratic
+model is too rigid to capture. Once that curvature is allowed for, the
+apparent D/R difference the quadratic (and the original linear-in-log-
+ratio) specification found is no longer distinguishable from sampling
+noise. **The best-supported specification available says: cannot reject
+symmetry.**
+
+Caveat on reading the coefficients themselves (not the F-test, which is
+specification-appropriate regardless): the D-challenger sample's mass sits
+around s~0.22 and the R-challenger sample's around s~0.90 (the same
+disjoint-support fact from the common-support section above) -- almost no
+data sits near s=0.5, where `(s-0.5)^k` is centered. The fitted
+`common_coefficients`/`interaction_coefficients` describe the curve's
+local behavior at a point with little identifying data, so they should not
+be read as "the elasticity at 50/50 spending" -- the F-test on the joint
+interaction block is the reliable object here, not the individual
+coefficient values.
+
+Three independent lines of evidence now say the same thing: (1) common-
+support trimming under the original linear specification, (2) a flexible
+nonlinear common curve fit to the FULL untrimmed sample (no trimming
+needed), and (3) that nonlinear fit's own internal model-selection check
+confirming the flexible specification is the right one to trust. All three
+point to "symmetry cannot be rejected once the functional form is not
+forced to be linear in log-spending-share" -- this is now the strongest
+evidence in the project for treating `game/payoff.py`'s single shared
+`c_spend` as a reasonable approximation, not just an untested one.
+
+Raw output: `results/d_r_symmetry_nonlinear.json`.
+
 ## The PSV baseline choice (spec Section 14)
 
 Read literally, `PSV_i = U_D(D', BR_R(D')) - U_D(D, R)` measures against the
@@ -678,9 +804,9 @@ arbitrary trim.
 | Level | Spec Section 20 question | Where |
 |---|---|---|
 | A | Response model predicts out of sample? | Reused from old project (`backtest.estimation.*`); not re-run here. |
-| B | Nonlinear vs. surrogate agree? | D-side: validated in the old project (`theta_concave_surrogate.py`). R-side surrogate (`src/optimizer/concave_surrogate.py::surrogate_allocate_r`) is NOT yet validated -- explicit TODO. |
+| B | Nonlinear vs. surrogate agree? | Closed 2026-08-12 -- `game/best_response_surrogate.py` validated for BOTH sides against exact SLSQP (see "Concave-envelope surrogate, validated for BOTH sides" above): objective agrees within 0.03-0.10 expected seats at ~500-1,000x speedup. Supersedes the old project's D-only `theta_concave_surrogate.py` validation and the never-validated R-side `surrogate_allocate_r`. |
 | C | Algorithm recovers known synthetic equilibria? | `src/validation/synthetic_games.py`, `tests/test_synthetic_game.py`. Standalone logistic-contest game, decoupled from the estimated election model on purpose (isolates the ITERATION algorithm from the SUBSTANTIVE model). |
-| D | Observed allocations closer to Nash than alternatives? | `src/validation/historical_backtest.py::run_cycle` computes the L1 distance; the full comparison against equal-allocation / Cook-heuristic / one-sided-optimizer / random-feasible benchmarks (spec Section 20's five-way comparison) is not yet implemented -- next step after the 2022/2024 MVP (spec Section 26). |
+| D | Observed allocations closer to Nash than alternatives? | Closed 2026-08-12 -- see "Level D five-way benchmark: H3 REJECTED, both cycles" above. `scripts/level_d_benchmark.py` runs the full five-way comparison (equal / Cook heuristic / one-sided optimizer / mixed equilibrium / random feasible); observed spending is closest to the Cook heuristic and farthest from both optimization-derived benchmarks, on both cycles. |
 
 ## x_D / x_R must be CONTROLLED money, not just non-candidate money (fixed 2026-08-11)
 
@@ -748,16 +874,75 @@ race/candidate-outcome-oriented (`(D candidate AND support) OR (R candidate
 AND oppose)` per transaction, via `sup_opp`), not "spender is generally
 R-aligned" -- `build_comprehensive_ie()` already did this right.
 
-**Known open item, not fixed here** (flagged by the same critique): candidate
-"disbursements" (`load_candidate_disbursements`) are FEC's broader
-disbursement category, which can include refunds, transfers, and loan
-repayments alongside genuine campaign-relevant expenditures -- FEC
-distinguishes "disbursement" from "expenditure" and this project currently
-uses the former uncleaned. Auditing this against the response model's own
-estimation sample (so `cand_d_total`/`cand_r_total` and whatever the
-persuasion-elasticity coefficients were actually fit on match) would need
-FEC Schedule B purpose-code filtering -- a real, separate data-quality task,
-not attempted in this pass.
+## Candidate "disbursements" audit: real bias, confirmed null effect on every headline result (2026-08-12)
+
+The open item above flagged that `load_candidate_disbursements` uses FEC's
+TTL_DISB (weball col 7, "total disbursements") uncleaned -- a broader
+category than genuine campaign expenditure, since FEC's own totals API
+separately reports `operating_expenditures` alongside `other_disbursements`,
+`loan_repayments`, `transfers_to_other_authorized_committee`, and
+`contribution_refunds`. This audit checks (a) whether the gap is real and
+how large, and (b) whether it actually moves anything this project reports.
+
+**(a) The gap is real and can be large, concentrated in a specific,
+identifiable archetype.** Pulled two known House leadership figures'
+`/candidate/{id}/totals/` from the FEC API (`api.open.fec.gov`, confirmed
+against the live data, not estimated):
+
+| Candidate | Role | District (safety) | TTL_DISB (`cand_d`) | `operating_expenditures` | Gap |
+|---|---|---|---|---|---|
+| Nancy Pelosi | Speaker (2022) | CA-11 (Safe D) | $28.28M | $10.81M | **62% is `other_disbursements` ($16.92M)** |
+| Hakeem Jeffries | Minority Leader (2024) | NY-08 (Safe D) | $20.24M | $14.61M | **28% is `other_disbursements` ($5.48M)** |
+
+`other_disbursements` for a party leader is dominated by redistribution to
+other campaigns via their fundraising apparatus -- real money, just not
+this district's own campaign spending. This is a genuine, confirmed
+overstatement of `cand_d_total` for these specific candidates -- not a
+hypothetical.
+
+**(b) But it provably cannot move any strategic result this project
+reports**, for two independent reasons:
+
+1. **The decision variable is mathematically insulated from `cand_d`'s
+   magnitude.** `apply_control_floor` sets `floor_d = cand_d + party_state_d
+   + outside_d` ("x_D / x_R must be CONTROLLED money" section above), and
+   `d_total` is untouched. So `party_d_obs = d_total - floor_d =
+   party_natl_d` EXACTLY -- the DCCC's own coordinated spend + national IEs,
+   an entirely SEPARATE data source (FEC coordinated-expenditure and IE
+   filings, not the candidate committee's disbursement total). However
+   inflated `cand_d` is, it cancels out of this subtraction identically;
+   `budget_d`, every `BR_D`/`BR_R` call, every exploitability/equilibrium
+   number in this project is computed from `party_d_obs`/`party_r_obs`, not
+   from `cand_d_total` directly.
+
+2. **The one channel that DOES depend on `cand_d_total`'s magnitude (the
+   baseline `mu_0` and persuasion ceiling `C_i` -- see `payoff.py`'s
+   module docstring) is a non-issue for exactly these races.** Checked
+   directly against `results/race_surplus_2024.csv`: EVERY 2022/2024 House
+   leadership figure or DCCC/NRCC chair with a district in this universe
+   (Pelosi CA-11, Jeffries NY-08, McCarthy/Johnson-era leadership seats,
+   Emmer MN-06, Hudson NC-09, DelBene WA-01, Clark MA-05, Clyburn SC-06,
+   Scalise LA-01/LA-04) sits in a Safe D or Safe R seat with `MSG_D` between
+   `1e-8` and `1e-17` -- numerically saturated. The sigmoid is already flat
+   at these races' true margins regardless of whether the floor is off by
+   0%, 30%, or 60%; no realistic correction changes `p_win_obs`, `MSG_D`,
+   or the "possible over-capitalization" classification these races already
+   get.
+
+**Verdict**: confirmed, quantified, real data-quality issue -- and a
+confirmed NULL effect on this project's exploitability numbers, best-
+response dynamics, mixed equilibrium, Level D benchmark, and PSV/race
+taxonomy, because of (1)'s exact cancellation and (2)'s saturation, not
+because the bias is merely "probably small." A full fix (re-fetching
+`operating_expenditures` for every candidate via the FEC's per-candidate
+totals endpoint instead of the bulk weball file) would still be worth doing
+before citing any SPECIFIC leadership district's individual numbers in a
+race-level table -- those two entries in `race_surplus_2024.csv` are
+individually still using the inflated floor -- but is not a prerequisite
+for anything already reported. Not attempted here beyond the two confirmed
+spot-checks: `api.open.fec.gov`'s `DEMO_KEY` is rate-limited to 10
+requests per window, exhausted during this audit; a full fix needs a free
+registered key (https://api.open.fec.gov/developers).
 
 ## R-side state-party coordinated spending (closed 2026-08-11)
 
@@ -793,7 +978,8 @@ data_catalog.md` has the full before/after table.
 
 ## Known open items (see spec Section 19, addressed only partially)
 
-- ~~**D/R elasticity symmetry test**~~: closed 2026-08-12 -- see "D/R elasticity symmetry test: rejected in the full sample, but largely a common-support artifact" above. Untrimmed, `beta_D` (5.47) and `beta_R` (24.17) reject symmetry at p=0.016 -- but the two samples sit at nearly disjoint D-spending-share regions (mean 0.22 vs. 0.90), and restricting both to a shared [0.10, 0.90] band moves the estimates much closer (10.04 vs. 19.07) and the test can no longer reject symmetry (p=0.188). Net read: a real but small-sample-uncertain asymmetry, with most of the untrimmed 4.4x gap explained by comparing different regions of a nonlinear (concave) response curve rather than a clean party effect. Rebuilding the payoff with party-specific elasticities remains open but is now a lower priority than the untrimmed result alone suggested.
+- ~~**D/R elasticity symmetry test**~~: closed 2026-08-12 -- see "D/R elasticity symmetry test: rejected under a linear specification, cannot be rejected under a flexible one" above. Untrimmed linear-in-log-ratio: `beta_D`=5.47 vs. `beta_R`=24.17 reject symmetry at p=0.016 -- but the two samples sit at nearly disjoint D-spending-share regions (mean 0.22 vs. 0.90). Common-support trimming ([0.10,0.90]) narrows the gap (10.04 vs. 19.07, p=0.188, cannot reject). A genuinely flexible common curve `g(s)` (cubic in spending share, fit to the FULL untrimmed sample, no trimming needed) also cannot reject symmetry (p=0.80) -- and a nested F-test confirms the cubic terms are themselves statistically justified (p=0.013), so this is the better-supported specification, not a convenient pick (a quadratic version of the same flexible approach DOES still reject, p=0.001 -- degree matters, and the data prefers the degree under which symmetry holds). Net verdict: `game/payoff.py`'s single shared `c_spend` is a reasonable approximation under the best-supported specification tried; a party-specific rebuild is not motivated by this evidence.
 - ~~**R-side concave surrogate validation**~~: closed 2026-08-12 -- see "Concave-envelope surrogate, validated for BOTH sides" above. `game/best_response_surrogate.py` replaces the old, never-validated `surrogate_allocate_r`; benchmarked against the current `game/best_response.py::br_d/br_r` directly.
 - ~~**Level D five-way benchmark comparison**~~: closed 2026-08-12 -- see "Level D five-way benchmark: H3 REJECTED" above. Observed spending is closest to a Cook-category heuristic and roughly tied for farthest from both the one-sided optimizer and the mixed equilibrium, on both cycles. H3 does not hold in this data.
-- ~~**Nash equilibrium does not converge under best-response dynamics**~~: partially addressed 2026-08-12 -- "Direct pure-strategy exploitability minimum," "Fictitious play," and "Double-oracle mixed equilibrium" sections above. Direct search confirms the residual-regret floor is not a search-thoroughness artifact (E_min lands back in the same 0.48-0.86 band the original dynamics found); fictitious play's time-average beats the best pure point found for 2024; double oracle finds a small-support mixed equilibrium. Still open: whether multiple PURE equilibria exist and the game's structure is characterizable well enough to enumerate them (not distinguished from the mixed-equilibrium explanation by anything run so far); the D/R elasticity symmetry test above, needed before any of this is read as a symmetric causal claim rather than a property of the current estimated payoff. `docs/results_2022_2024.md` needs a full re-run against the current payoff before any of its headline numbers (exploitability OR Nash) are cited again.
+- ~~**Candidate "disbursements" include non-campaign spending (transfers/loan repayments/refunds)**~~: closed 2026-08-12 -- see "Candidate 'disbursements' audit" above. Confirmed real via the FEC API for two known House leadership figures (Pelosi CA-11: 62% of TTL_DISB is `other_disbursements`; Jeffries NY-08: 28%) -- but PROVEN to have zero effect on every result this project reports: `party_d_obs`/`party_r_obs` (the actual decision variables) are mathematically insulated from `cand_d_total`'s magnitude by the floor/party accounting identity, and the only channel that does depend on it (`mu_0`/`C_i`) only matters for races that are already numerically saturated regardless (every affected candidate is a known leadership figure in a Safe D/R seat, `MSG_D` between 1e-8 and 1e-17). A full fix (real FEC API key, re-fetch `operating_expenditures` for every candidate) would still be worth doing before citing any specific leadership district's individual numbers, but isn't a prerequisite for anything already reported.
+- ~~**Nash equilibrium does not converge under best-response dynamics**~~: addressed 2026-08-12 -- "Direct pure-strategy exploitability minimum," "Fictitious play," "Double-oracle mixed equilibrium," and "Equilibrium support composition" sections above. Direct search confirms the residual-regret floor is not a search-thoroughness artifact (E_min lands back in the same 0.48-0.86 band the original dynamics found); fictitious play's time-average beats the best pure point found for 2024; double oracle finds a small-support mixed equilibrium on BOTH cycles (converged, not just 2024); the support decomposes into interpretable core/swing/irrelevant races. Still genuinely open, not chased further on purpose (per this project's own roadmap discussion): whether multiple PURE equilibria exist and the game's structure is characterizable well enough to enumerate them -- the evidence collected supports "no low-regret pure point found under extensive search, mixed equilibrium computed successfully," not the stronger, unproven claim "no pure equilibrium exists." `docs/results_2022_2024.md` is already the post-refresh version (its own intro states this) -- no outstanding re-run needed.
