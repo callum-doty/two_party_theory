@@ -32,14 +32,34 @@ specifically (28% of the total is invisible to the curve's shape); flagged
 here rather than silently treated as equally reliable across all four
 cycle/party combinations.
 
-SECOND SIMPLIFYING ASSUMPTION: one aggregate fraction curve per (cycle,
-party), applied uniformly to every race's own party_obs, rather than a
-separate per-race date curve. Necessary because most funded races have only
-a handful of dated national-committee transactions each -- a per-race curve
-would be dominated by small-sample noise, the same sparse-data problem this
-project's eta reaction estimation pools across Cook-rating tiers to avoid
-(here, pooled across races instead of districts). A race with party_obs=0
+SECOND SIMPLIFYING ASSUMPTION, PARTIALLY RELAXED 2026-08-13: the functions
+above use one aggregate fraction curve per (cycle, party), applied
+uniformly to every race's own party_obs, rather than a separate per-race
+date curve -- necessary because most funded races have only a handful of
+dated national-committee transactions each, and a per-race curve would be
+dominated by small-sample noise (the same sparse-data problem this
+project's eta reaction estimation pools across Cook-rating tiers to avoid,
+here pooled across races instead of districts). A race with party_obs=0
 correctly gets committed capital = 0 at every date regardless.
+
+PARTIAL POOLING BY COMPETITIVENESS TIER (functions below, suffixed
+`_tiered`): checked the district/transaction counts by full 7-way Cook
+rating before building this -- most non-competitive ratings have only 1-4
+funded districts and a few dozen transactions each, too thin to trust
+individually. Collapsing to three tiers (competitive = Toss-Up; lean = Lean
+D/Lean R; safe_likely = Safe D/Likely D/Safe R/Likely R) gives workable
+counts: 10-22 districts / 200-450 transactions in competitive and lean,
+3-5 districts / 29-104 transactions in safe_likely (thin but usable pooled,
+where it was unusable split 4 ways). This is not just noise reduction for
+its own sake -- there is a real timing gradient to capture: in 3 of 4
+cycle/party combinations checked, competitive races are funded measurably
+earlier than lean or safe/likely ones (2022 R: competitive median txn date
+Oct 11 -> lean Oct 18 -> safe_likely Oct 25, a 2-week spread). The one
+exception (2024 R, safe_likely funded earliest) is built on only 3
+districts/35 transactions and is treated as noise, not a real reversal.
+Still one curve per (cycle, party, TIER), not per race -- the tier is the
+unit of pooling, chosen to be the coarsest split that still shows a real
+effect, not the finest split the data could nominally support.
 """
 
 from __future__ import annotations
@@ -50,6 +70,21 @@ import numpy as np
 import pandas as pd
 
 from backtest.data.fec import load_ie_transactions_dated
+
+TIER_MAP = {
+    "Toss-Up": "competitive",
+    "Lean D": "lean", "Lean R": "lean",
+    "Safe D": "safe_likely", "Likely D": "safe_likely",
+    "Safe R": "safe_likely", "Likely R": "safe_likely",
+}
+TIERS = ("competitive", "lean", "safe_likely")
+
+
+def race_tier(cook_rating: str) -> str:
+    """Map a RaceRecord's cook_rating to one of TIERS. Unrecognized ratings
+    fall back to safe_likely (the pool least sensitive to a handful of
+    misbucketed districts, since it already spans four Cook categories)."""
+    return TIER_MAP.get(cook_rating, "safe_likely")
 
 
 def commitment_fraction_curve(cycle: int, party: str) -> pd.DataFrame:
@@ -89,3 +124,47 @@ def committed_capital_per_race(cycle: int, party: str, as_of_date: date,
     why it is one aggregate curve rather than a per-race one."""
     frac = commitment_fraction_as_of(cycle, party, as_of_date, curve)
     return frac * np.asarray(party_obs, dtype=float)
+
+
+def commitment_fraction_curve_tiered(cycle: int, party: str, tier: str, races) -> pd.DataFrame:
+    """Same as commitment_fraction_curve, restricted to districts whose
+    Cook rating maps to `tier` (see race_tier/TIER_MAP). `races` is the
+    RaceRecord list for this cycle (build_cycle_state.py's `races`) --
+    passed in rather than refetched, since every caller already has it."""
+    cook = {r.district_id: r.cook_rating for r in races}
+    txns = load_ie_transactions_dated(cycle, national_committee_only=True)
+    txns = txns[txns["party"] == party].copy()
+    txns["tier"] = txns["district_id"].map(lambda d: race_tier(cook.get(d, "")))
+    txns = txns[txns["tier"] == tier].sort_values("exp_date")
+    total = float(txns["amount"].sum())
+    if total <= 0:
+        raise ValueError(f"No dated national-committee-own IE spend found for {cycle} {party} tier={tier}")
+    cum = txns.groupby("exp_date")["amount"].sum().cumsum()
+    frac = (cum / total).rename("fraction_committed")
+    return frac.reset_index()
+
+
+def build_tiered_curves(cycle: int, party: str, races) -> dict[str, pd.DataFrame]:
+    """{tier: commitment_fraction_curve_tiered(...)} for all of TIERS --
+    compute ONCE per (cycle, party) and reuse across every race/date in a
+    sweep, the same reuse pattern the rest of this module and
+    persistent_value.py's isolated baseline already rely on."""
+    return {tier: commitment_fraction_curve_tiered(cycle, party, tier, races) for tier in TIERS}
+
+
+def committed_capital_per_race_tiered(cycle: int, party: str, as_of_date: date,
+                                       races, party_obs: np.ndarray,
+                                       curves: dict[str, pd.DataFrame] | None = None) -> np.ndarray:
+    """L_t per race using the TIER-APPROPRIATE commitment fraction for each
+    race's own Cook rating, instead of one blended fraction for every race
+    (committed_capital_per_race above). curves: build_tiered_curves(...)'s
+    output, computed once by the caller and reused across a sweep -- each
+    call here would otherwise reload and refilter the raw transaction file
+    three times (once per tier)."""
+    if curves is None:
+        curves = build_tiered_curves(cycle, party, races)
+    fracs = np.array([
+        commitment_fraction_as_of(cycle, party, as_of_date, curve=curves[race_tier(r.cook_rating)])
+        for r in races
+    ])
+    return fracs * np.asarray(party_obs, dtype=float)
