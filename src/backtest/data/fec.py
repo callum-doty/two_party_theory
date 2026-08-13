@@ -290,9 +290,30 @@ def build_total_spend(cycle: int) -> pd.DataFrame:
 # (docs/paper2_draft.md §6.2) and are not used anywhere in Paper I's pipeline.
 
 
-def load_ie_transactions_dated(cycle: int) -> pd.DataFrame:
+# FEC committee IDs for the two national House committees' own spending --
+# duplicated from scripts/fetch_data.py's DCCC_COMMITTEE_ID/NRCC_COMMITTEE_ID
+# rather than imported, since src/ code should not depend on scripts/ (the
+# dependency runs the other way throughout this project); these are stable,
+# well-known FEC committee IDs, not derived logic.
+DCCC_COMMITTEE_ID = "C00000935"
+NRCC_COMMITTEE_ID = "C00075820"
+
+
+def load_ie_transactions_dated(cycle: int, national_committee_only: bool = False) -> pd.DataFrame:
     """
     Return transaction-level, dated independent expenditures for a cycle.
+
+    national_committee_only=True restricts to DCCC's/NRCC's OWN spending
+    decisions (spe_id == DCCC_COMMITTEE_ID for D-aligned rows, spe_id ==
+    NRCC_COMMITTEE_ID for R-aligned rows) -- the same filter scripts/
+    fetch_data.py::extract_national_committee_ies applies to the
+    cycle-aggregated version, applied here to the dated transaction stream
+    instead. This is the DATED equivalent of party_natl / x_D / x_R (this
+    project's actual game-theoretic decision variables, via estimation.
+    control_provenance.apply_control_floor) -- default False preserves the
+    original behavior (every D/R-aligned IE, including outside groups this
+    project's game does not treat as either committee's controllable
+    action).
 
     Derived from the raw comprehensive Schedule E file
     (data/raw/independent_expenditure/independent_expenditure_{cycle}.csv) —
@@ -400,6 +421,10 @@ def load_ie_transactions_dated(cycle: int) -> pd.DataFrame:
     d_aligned = (is_dem_cand & is_support) | (is_rep_cand & is_oppose)
     r_aligned = (is_rep_cand & is_support) | (is_dem_cand & is_oppose)
 
+    if national_committee_only:
+        d_aligned = d_aligned & (df["spe_id"] == DCCC_COMMITTEE_ID)
+        r_aligned = r_aligned & (df["spe_id"] == NRCC_COMMITTEE_ID)
+
     d = df.loc[d_aligned, ["district_id", "exp_date_parsed", "exp_amo"]].copy()
     d["party"] = "D"
     r = df.loc[r_aligned, ["district_id", "exp_date_parsed", "exp_amo"]].copy()
@@ -407,6 +432,10 @@ def load_ie_transactions_dated(cycle: int) -> pd.DataFrame:
 
     out = pd.concat([d, r], ignore_index=True)
     out = out.rename(columns={"exp_date_parsed": "exp_date", "exp_amo": "amount"})
+    if national_committee_only:
+        logger.info(f"load_ie_transactions_dated({cycle}, national_committee_only=True): "
+                    f"DCCC ${out.loc[out['party']=='D','amount'].sum():,.0f}, "
+                    f"NRCC ${out.loc[out['party']=='R','amount'].sum():,.0f}")
     return out[["district_id", "party", "exp_date", "amount"]]
 
 
