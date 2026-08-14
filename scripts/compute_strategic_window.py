@@ -58,15 +58,29 @@ def main() -> None:
     parser.add_argument("--cycle", type=int, default=2024)
     parser.add_argument("--cap-fraction-d", type=float, default=0.15)
     parser.add_argument("--cap-fraction-r", type=float, default=0.15)
+    parser.add_argument("--pool", choices=["curve", "primary"], default="curve",
+                         help="'curve' (default): the top-3-by-leverage candidates strategic_leverage.py ran the "
+                              "full 4-delta curve for -- backward compatible, writes strategic_window_{cycle}.json. "
+                              "'primary': the FULL top-4-swing+top-4-|Z| candidate pool (7-8 districts/side) "
+                              "strategic_leverage.py solved once at $1M -- a K~8 action-space sweep for the "
+                              "unified-Theta sequential game (game/unified_theta.py), writes "
+                              "strategic_window_expanded_{cycle}.json instead so it never clobbers the 'curve' run.")
     args = parser.parse_args()
 
     prior_path = REPO_ROOT / "results" / f"strategic_leverage_{args.cycle}.json"
     if not prior_path.exists():
         raise SystemExit(f"{prior_path} not found -- run compute_strategic_leverage.py --cycle {args.cycle} first")
     prior = json.load(open(prior_path))
-    top_d = sorted({r["district_id"] for r in prior["leverage_D_curve"]})
-    top_r = sorted({r["district_id"] for r in prior["leverage_R_curve"]})
-    logger.info(f"Cycle {args.cycle}: reusing top-3 D candidates {top_d} and R candidates {top_r}")
+    if args.pool == "curve":
+        top_d = sorted({r["district_id"] for r in prior["leverage_D_curve"]})
+        top_r = sorted({r["district_id"] for r in prior["leverage_R_curve"]})
+        out_name = f"strategic_window_{args.cycle}.json"
+    else:
+        top_d = sorted({r["district_id"] for r in prior["leverage_D_primary"]})
+        top_r = sorted({r["district_id"] for r in prior["leverage_R_primary"]})
+        out_name = f"strategic_window_expanded_{args.cycle}.json"
+    logger.info(f"Cycle {args.cycle} ({args.pool} pool): D candidates {top_d} ({len(top_d)}); "
+                f"R candidates {top_r} ({len(top_r)})")
 
     election_day = ELECTION_DAY[args.cycle]
     dates = [election_day - timedelta(days=d) for d in DAYS_BEFORE]
@@ -144,7 +158,7 @@ def main() -> None:
         strategic_window_D=d_rows, strategic_window_R=r_rows,
         T80_D=opening_d, T80_R=opening_r,
     )
-    out_path = REPO_ROOT / "results" / f"strategic_window_{args.cycle}.json"
+    out_path = REPO_ROOT / "results" / out_name
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2)
     logger.info(f"Saved -> {out_path}")
