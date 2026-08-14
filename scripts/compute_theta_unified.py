@@ -52,8 +52,14 @@ CAP_FRACTION = 0.15
 
 def _run_side(races, coef, sigma_model, cand_r_total, party_d_obs, party_r_obs,
               budget, idx_by_district, cycle: int, side: str, rows: list[dict],
-              election_day: date, delta: float, seed: int) -> dict:
+              election_day: date, delta: float, seed: int, exclude_redistricting: bool = False) -> dict:
     districts = sorted({r["district_id"] for r in rows})
+    if exclude_redistricting:
+        flagged = {r.district_id for r in races if r.redistricting_flagged}
+        dropped = sorted(set(districts) & flagged)
+        if dropped:
+            logger.info(f"  --exclude-redistricting: dropping {dropped} from the candidate pool")
+        districts = [d for d in districts if d not in flagged]
     candidate_indices = [idx_by_district[d] for d in districts]
     dates_str = []
     seen = set()
@@ -125,14 +131,24 @@ def _run_side(races, coef, sigma_model, cand_r_total, party_d_obs, party_r_obs,
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Unified Bellman Theta from a strategic-window candidate pool")
-    parser.add_argument("--pool", choices=["curve", "primary"], default="curve",
+    parser.add_argument("--pool", choices=["curve", "primary", "union"], default="curve",
                          help="'curve' (default): K=3/side, reads strategic_window_{cycle}.json, writes "
-                              "theta_unified.json. 'primary': K~8/side (the sequential-game action-space "
-                              "expansion), reads strategic_window_expanded_{cycle}.json (run "
-                              "compute_strategic_window.py --pool primary first), writes theta_unified_expanded.json.")
+                              "theta_unified.json. 'primary': K~8/side, reads strategic_window_expanded_{cycle}.json, "
+                              "writes theta_unified_expanded.json. 'union': K~15-20/side, reads "
+                              "strategic_window_union_{cycle}.json (run compute_strategic_window.py --pool union "
+                              "first), writes theta_unified_union.json.")
+    parser.add_argument("--exclude-redistricting", action="store_true",
+                         help="Drop candidates flagged RaceRecord.redistricting_flagged (NC-06/13/14/etc. -- "
+                              "documented elsewhere in this project as having a less certain baseline) from the "
+                              "candidate pool before running the Bellman recursion. Appends '_excl_redistricting' "
+                              "to the output filename so it never clobbers the unfiltered run.")
     args = parser.parse_args()
-    window_name = "strategic_window_{}.json" if args.pool == "curve" else "strategic_window_expanded_{}.json"
-    out_name = "theta_unified.json" if args.pool == "curve" else "theta_unified_expanded.json"
+    window_names = {"curve": "strategic_window_{}.json", "primary": "strategic_window_expanded_{}.json",
+                     "union": "strategic_window_union_{}.json"}
+    out_names = {"curve": "theta_unified.json", "primary": "theta_unified_expanded.json", "union": "theta_unified_union.json"}
+    window_name, out_name = window_names[args.pool], out_names[args.pool]
+    if args.exclude_redistricting:
+        out_name = out_name.replace(".json", "_excl_redistricting.json")
 
     election_day_map = {2022: date(2022, 11, 8), 2024: date(2024, 11, 5)}
     delta = 1_000_000.0
@@ -160,10 +176,12 @@ def main() -> None:
         cycle_out = {}
         cycle_out["D"] = _run_side(races, coef, sigma_model, cand_r_total, party_d_obs, party_r_obs,
                                     budget_d, idx_by_district, cycle, "D", window["strategic_window_D"],
-                                    election_day, delta, seed=cycle * 10 + 1)
+                                    election_day, delta, seed=cycle * 10 + 1,
+                                    exclude_redistricting=args.exclude_redistricting)
         cycle_out["R"] = _run_side(races, coef, sigma_model, cand_r_total, party_d_obs, party_r_obs,
                                     budget_r, idx_by_district, cycle, "R", window["strategic_window_R"],
-                                    election_day, delta, seed=cycle * 10 + 2)
+                                    election_day, delta, seed=cycle * 10 + 2,
+                                    exclude_redistricting=args.exclude_redistricting)
         all_results[cycle] = cycle_out
 
     out_path = REPO_ROOT / "results" / out_name

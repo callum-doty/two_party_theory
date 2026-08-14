@@ -55,7 +55,9 @@ def _trimmed(dates: list[str], deploy_by_date: dict[str, float]) -> dict:
 
 def main() -> None:
     all_out = {}
-    for pool, fname in (("curve_K3", "theta_unified.json"), ("primary_K8", "theta_unified_expanded.json")):
+    for pool, fname in (("curve_K3", "theta_unified.json"), ("primary_K8", "theta_unified_expanded.json"),
+                        ("union_K15to20", "theta_unified_union.json"),
+                        ("union_K15to20_excl_redistricting", "theta_unified_union_excl_redistricting.json")):
         path = REPO_ROOT / "results" / fname
         if not path.exists():
             logger.warning(f"{path} not found, skipping {pool}")
