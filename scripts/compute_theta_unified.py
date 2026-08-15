@@ -131,23 +131,31 @@ def _run_side(races, coef, sigma_model, cand_r_total, party_d_obs, party_r_obs,
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Unified Bellman Theta from a strategic-window candidate pool")
-    parser.add_argument("--pool", choices=["curve", "primary", "union"], default="curve",
+    parser.add_argument("--pool", choices=["curve", "primary", "union", "union_weekly_clean"], default="curve",
                          help="'curve' (default): K=3/side, reads strategic_window_{cycle}.json, writes "
                               "theta_unified.json. 'primary': K~8/side, reads strategic_window_expanded_{cycle}.json, "
                               "writes theta_unified_expanded.json. 'union': K~15-20/side, reads "
                               "strategic_window_union_{cycle}.json (run compute_strategic_window.py --pool union "
-                              "first), writes theta_unified_union.json.")
+                              "first), writes theta_unified_union.json. 'union_weekly_clean': the K=15-20 stress "
+                              "test's SECOND check -- redistricting-flagged districts already excluded AND the "
+                              "18-point weekly date grid (run compute_strategic_window.py --pool union "
+                              "--exclude-redistricting --weekly first), reads "
+                              "strategic_window_union_{cycle}_excl_redistricting_weekly.json, writes "
+                              "theta_unified_union_weekly_clean.json.")
     parser.add_argument("--exclude-redistricting", action="store_true",
                          help="Drop candidates flagged RaceRecord.redistricting_flagged (NC-06/13/14/etc. -- "
                               "documented elsewhere in this project as having a less certain baseline) from the "
                               "candidate pool before running the Bellman recursion. Appends '_excl_redistricting' "
-                              "to the output filename so it never clobbers the unfiltered run.")
+                              "to the output filename so it never clobbers the unfiltered run. Not needed (and a "
+                              "no-op on top of) '--pool union_weekly_clean', which already excludes them upstream.")
     args = parser.parse_args()
     window_names = {"curve": "strategic_window_{}.json", "primary": "strategic_window_expanded_{}.json",
-                     "union": "strategic_window_union_{}.json"}
-    out_names = {"curve": "theta_unified.json", "primary": "theta_unified_expanded.json", "union": "theta_unified_union.json"}
+                     "union": "strategic_window_union_{}.json",
+                     "union_weekly_clean": "strategic_window_union_{}_excl_redistricting_weekly.json"}
+    out_names = {"curve": "theta_unified.json", "primary": "theta_unified_expanded.json", "union": "theta_unified_union.json",
+                 "union_weekly_clean": "theta_unified_union_weekly_clean.json"}
     window_name, out_name = window_names[args.pool], out_names[args.pool]
-    if args.exclude_redistricting:
+    if args.exclude_redistricting and args.pool != "union_weekly_clean":
         out_name = out_name.replace(".json", "_excl_redistricting.json")
 
     election_day_map = {2022: date(2022, 11, 8), 2024: date(2024, 11, 5)}
