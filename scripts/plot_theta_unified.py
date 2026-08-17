@@ -11,6 +11,7 @@ Output: figures/static/theta_unified_summary.png
 from __future__ import annotations
 
 import json
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -66,12 +67,11 @@ def main() -> None:
     ax.set_title("Unified Theta: one Bellman value, decomposed by counterfactual", fontsize=12.5, loc="left", fontweight="bold")
     ax.legend(loc="best", fontsize=8, frameon=False)
 
-    fig.text(0.5, -0.03,
-              "One decision rule (noisy-V_uni x retention, realized at TRUE PSV) used at every date and in every counterfactual -- "
-              "unlike the earlier two-module Theta, flex-only and info-only are computed on the SAME Bellman recursion, differing only in which state variable is frozen.",
-              ha="center", fontsize=7.3, color="#9a9a9a")
+    caption = ("One decision rule (noisy-V_uni x retention, realized at TRUE PSV) used at every date and in every counterfactual -- "
+               "unlike the earlier two-module Theta, flex-only and info-only are computed on the SAME Bellman recursion, differing only in which state variable is frozen.")
+    fig.text(0.5, 0.12, textwrap.fill(caption, width=90), ha="center", va="top", fontsize=7.3, color="#9a9a9a")
 
-    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    fig.tight_layout(rect=(0, 0.12, 1, 1))
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUT_DIR / "theta_unified_summary.png"
     fig.savefig(out_path, dpi=200, bbox_inches="tight")

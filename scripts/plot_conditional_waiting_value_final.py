@@ -36,6 +36,7 @@ Output: figures/static/conditional_waiting_value_final.png
 from __future__ import annotations
 
 import json
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -129,13 +130,12 @@ def main() -> None:
     ax.set_xlim(right=ax.get_xlim()[1] * 1.15)
     ax.set_ylim(-0.5, len(rows) - 0.5)
 
-    fig.text(0.5, -0.02,
-              "Widening the candidate pool from K=3 to a principled K~15-20 union screen, then removing districts with a redistricting-flagged (unreliable) baseline, "
-              "overturns most of the earlier 'genuine mid-season wait' stories: FL-27 and TN-09 dominate their pools from day one (nothing to wait for), CT-02/FL-22/NV-01/FL-07 "
-              "are all beaten by a better option already sitting there. AZ-09 is the one case that survives every check.",
-              ha="center", fontsize=8, color="#666666")
+    caption = ("Widening the candidate pool from K=3 to a principled K~15-20 union screen, then removing districts with a redistricting-flagged (unreliable) baseline, "
+               "overturns most of the earlier 'genuine mid-season wait' stories: FL-27 and TN-09 dominate their pools from day one (nothing to wait for), CT-02/FL-22/NV-01/FL-07 "
+               "are all beaten by a better option already sitting there. AZ-09 is the one case that survives every check.")
+    fig.text(0.42, 0.15, textwrap.fill(caption, width=95), ha="center", va="top", fontsize=8, color="#666666")
 
-    fig.tight_layout(rect=(0, 0.03, 0.82, 1))
+    fig.tight_layout(rect=(0, 0.16, 0.82, 1))
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUT_DIR / "conditional_waiting_value_final.png"
     fig.savefig(out_path, dpi=200, bbox_inches="tight")

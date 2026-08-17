@@ -15,6 +15,7 @@ Output: figures/static/weekly_stress_test_verdict.png
 from __future__ import annotations
 
 import json
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -74,13 +75,12 @@ def main() -> None:
                   fontsize=13, loc="left", fontweight="bold")
     ax.legend(loc="upper left", fontsize=9.5, frameon=False)
 
-    fig.text(0.5, -0.02,
-              "Both races technically clear the '80% retention, holds afterward' bar used to compute Theta -- but only AZ-09 gets there gradually, while the opponent still has real "
-              "flexible money left. FL-02 sits flat and heavily countered for the whole season, then jumps only once the opponent has nearly run out of money to respond with -- "
-              "the same character as the mechanical final-week floor, just one data point earlier. A genuine timing signal should look like the green line, not the red one.",
-              ha="center", fontsize=8, color="#666666")
+    caption = ("Both races technically clear the '80% retention, holds afterward' bar used to compute Theta -- but only AZ-09 gets there gradually, while the opponent still has real "
+               "flexible money left. FL-02 sits flat and heavily countered for the whole season, then jumps only once the opponent has nearly run out of money to respond with -- "
+               "the same character as the mechanical final-week floor, just one data point earlier. A genuine timing signal should look like the green line, not the red one.")
+    fig.text(0.5, 0.15, textwrap.fill(caption, width=95), ha="center", va="top", fontsize=8, color="#666666")
 
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    fig.tight_layout(rect=(0, 0.16, 1, 1))
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUT_DIR / "weekly_stress_test_verdict.png"
     fig.savefig(out_path, dpi=200, bbox_inches="tight")

@@ -9,6 +9,7 @@ Output: figures/static/theta_final_week_sensitivity.png
 from __future__ import annotations
 
 import json
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -64,13 +65,12 @@ def main() -> None:
 
     fig.suptitle("How much of Theta_full is genuine mid-season timing value, vs. the mechanical final-week floor?",
                   fontsize=12, x=0.02, ha="left", fontweight="bold")
-    fig.text(0.5, -0.02,
-              "Every race's retention converges to ~100% at the final reference date by construction (strategic_window.py) -- a race can dominate Theta_full there purely by "
-              "having the largest raw V_uni in the K-pool, independent of whether it was ever genuinely contested earlier. Excluding that date isolates the timing value that "
-              "actually depends on the opponent's mid-season capital constraints.",
-              ha="center", fontsize=7.3, color="#9a9a9a")
+    caption = ("Every race's retention converges to ~100% at the final reference date by construction (strategic_window.py) -- a race can dominate Theta_full there purely by "
+               "having the largest raw V_uni in the K-pool, independent of whether it was ever genuinely contested earlier. Excluding that date isolates the timing value that "
+               "actually depends on the opponent's mid-season capital constraints.")
+    fig.text(0.5, 0.14, textwrap.fill(caption, width=100), ha="center", va="top", fontsize=7.3, color="#9a9a9a")
 
-    fig.tight_layout(rect=(0, 0.05, 1, 0.93))
+    fig.tight_layout(rect=(0, 0.15, 1, 0.93))
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUT_DIR / "theta_final_week_sensitivity.png"
     fig.savefig(out_path, dpi=200, bbox_inches="tight")

@@ -1,0 +1,8 @@
+\usepackage{graphicx}
+\usepackage{float}
+\let\origfigure\figure
+\let\endorigfigure\endfigure
+\renewenvironment{figure}[1][2]{\origfigure[H]}{\endorigfigure}
+\setkeys{Gin}{width=0.95\linewidth,keepaspectratio}
+\sloppy
+\emergencystretch=3em
