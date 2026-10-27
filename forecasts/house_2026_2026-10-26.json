@@ -1,0 +1,71 @@
+{
+  "as_of": "2026-10-26",
+  "election_day": "2026-11-03",
+  "generic_ballot": 8.4,
+  "model": {
+    "train_cycles": [
+      2012,
+      2014,
+      2016,
+      2018,
+      2020,
+      2022,
+      2024
+    ],
+    "n_train": 2586,
+    "sigma": 8.167012110173857,
+    "coef": {
+      "intercept": -0.8641,
+      "pvi": 1.6977,
+      "d_incumbent": 8.7197,
+      "open_seat": 3.0482,
+      "floor_share": 2.9178
+    },
+    "spending_effect": {
+      "scale_pts": 1.5,
+      "saturation_per_voter": 10.0
+    }
+  },
+  "n_races_modeled": 434,
+  "expected_dem_seats_modeled": 238.73248187524285,
+  "expected_dem_seats_by_gb": {
+    "+5.4": 228.12414259270716,
+    "+8.4": 238.73248187524285,
+    "+11.4": 250.62279067803425
+  },
+  "extra_dollars": 0.0,
+  "extra_expected_seat_gain": null,
+  "redrawn_states_2026": {
+    "AL": 4,
+    "CA": 37,
+    "FL": 18,
+    "GA": 1,
+    "KS": 1,
+    "LA": 5,
+    "NC": 2,
+    "OH": 11,
+    "TN": 5,
+    "TX": 27,
+    "UT": 4
+  },
+  "map_overrides": {
+    "2026-MO": "uses 2024 lines"
+  },
+  "data_snapshot": {
+    "data/raw/fec/candidate_disbursements_2026.csv": "2026-10-26T19:06",
+    "data/raw/fec/independent_expenditures_2026.csv": "2026-10-26T19:06",
+    "data/raw/fec/coordinated_expenditures_2026.csv": "2026-10-26T19:06",
+    "data/raw/fec/incumbency_2026.csv": "2026-10-26T19:06",
+    "data/raw/independent_expenditure/independent_expenditure_2026.csv": "2026-10-26T18:56",
+    "data/processed/pres_by_lines.csv": "2026-10-26T18:58"
+  },
+  "notes": [
+    "Tiers are derived from PVI and incumbency (backtest/data/pvi.py derive_rating), not published ratings.",
+    "Only races with >= $100K total spending are modeled (backtest/data/universe.py); Alaska is excluded.",
+    "floor_share uses money outside the national committees' control as reported to the FEC by the snapshot.",
+    "The spending effect is an assumption (simple_model/spending.py), not an estimate.",
+    "NRSC v. FEC (2026-06-30) struck down party coordinated-spending limits. For 2026 the FEC reports DCCC with $0 in independent expenditures and $60.9M in coordinated party expenditures through 2026-10-14, but only ~$5.2M of that is itemized by race in the API data, so race-level DCCC spending to date is incomplete. The win probabilities do not depend on it; any --extra allocation does.",
+    "The D-incumbent coefficient (~9-11 margin points) is estimated mostly from incumbents in their own districts; for incumbents on heavily redrawn 2026 maps (e.g. TX-28, TX-34, NC-01, OH-09) it is probably overstated.",
+    "Map status: Texas (new map, SCOTUS Dec 2025) and Missouri (2022 map, SCOTUS 2026-09-25) were checked after July 2026; other redrawn states follow The Downballot's July 2026 data."
+  ]
+}
